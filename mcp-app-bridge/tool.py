@@ -1,8 +1,8 @@
 """
 title: MCP App Bridge
 author: Classic298
-version: 0.2.0
-description: Proof of concept — wraps MCP server tools and renders MCP App UI resources (ui://) as Rich UI embeds using Open WebUI's existing embed system. Honors server-declared CSP and permissions per the MCP Apps spec. No middleware changes needed.
+version: 0.3.0
+description: Proof of concept — wraps MCP server tools and renders MCP App UI resources (ui://) as Rich UI embeds using Open WebUI's existing embed system. Spec-compliant: honors server-declared CSP, dispatches ui/notifications/tool-result for AppBridge SDK compatibility. No middleware changes needed.
 """
 
 import json
@@ -273,14 +273,48 @@ class Tools:
             if not html_content:
                 return result_text or "Tool executed (UI resource was empty)."
 
-            # --- Build injection: CSP + tool data + auto-height ---
+            # --- Build injection: CSP + data + AppBridge shim + auto-height ---
             csp_tag = _build_csp_meta_tag(csp_data)
 
+            # Globals for custom apps that read __MCP_TOOL_RESULT__ directly
             data_script = (
                 "<script>\n"
                 f"  window.__MCP_TOOL_RESULT__ = {json.dumps(result_text)};\n"
                 f"  window.__MCP_TOOL_ARGS__   = {json.dumps(args, ensure_ascii=False)};\n"
                 f"  window.__MCP_TOOL_NAME__   = {json.dumps(tool_name)};\n"
+                "</script>\n"
+            )
+
+            # Spec-compliant AppBridge shim: dispatches ui/notifications/tool-result
+            # as a synthetic MessageEvent so apps using the official AppBridge SDK
+            # receive the tool result via the standard protocol.
+            # Works without iframe same-origin — no parent access needed.
+            appbridge_shim = (
+                "<script>\n"
+                "(function(){\n"
+                f"  var _result = {json.dumps(result_text)};\n"
+                "  var _notification = {\n"
+                "    jsonrpc: '2.0',\n"
+                "    method: 'ui/notifications/tool-result',\n"
+                "    params: { content: [{ type: 'text', text: _result }] }\n"
+                "  };\n"
+                "  try {\n"
+                "    var _parsed = JSON.parse(_result);\n"
+                "    if (_parsed && typeof _parsed === 'object')\n"
+                "      _notification.params.structuredContent = _parsed;\n"
+                "  } catch(e) {}\n"
+                "  function _dispatch() {\n"
+                "    window.dispatchEvent(new MessageEvent('message', {\n"
+                "      data: _notification,\n"
+                "      origin: window.location.origin,\n"
+                "      source: window.parent\n"
+                "    }));\n"
+                "  }\n"
+                "  if (document.readyState === 'complete' || document.readyState === 'interactive')\n"
+                "    setTimeout(_dispatch, 50);\n"
+                "  else\n"
+                "    window.addEventListener('DOMContentLoaded', function(){ setTimeout(_dispatch, 50); });\n"
+                "})();\n"
                 "</script>\n"
             )
 
@@ -296,7 +330,7 @@ class Tools:
                 "</script>\n"
             )
 
-            injection = csp_tag + data_script + height_script
+            injection = csp_tag + data_script + appbridge_shim + height_script
 
             if "<head>" in html_content:
                 html_content = html_content.replace("<head>", "<head>\n" + injection, 1)

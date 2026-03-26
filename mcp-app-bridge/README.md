@@ -112,20 +112,21 @@ This avoids pre-loading every MCP tool definition into the model's context windo
 
 Open WebUI already has a native Rich UI system: tools that return `HTMLResponse` render interactive HTML inline in the chat inside a sandboxed iframe. This bridge uses that same system to render MCP Apps — no additional rendering infrastructure is needed.
 
-> **Note:** Tools returning `HTMLResponse` always render inside an iframe, regardless of whether the "iframe Sandbox Allow Same Origin" toggle is enabled. That toggle only controls whether the iframe gets `allow-same-origin` access — the iframe isolation itself is always enforced.
+> [!NOTE]
+> Tools returning `HTMLResponse` always render inside an iframe, regardless of whether the "iframe Sandbox Allow Same Origin" toggle is enabled. That toggle only controls whether the iframe gets `allow-same-origin` access — the iframe isolation itself is always enforced.
 
 | Capability | MCP Apps (via this bridge) | Open WebUI Rich UI (native) |
 |---|---|---|
 | Render interactive HTML inline | ✅ | ✅ |
 | Sandboxed iframe isolation | ✅ Always | ✅ Always |
-| Content Security Policy | ✅ Server-declared CSP | ✅ Tool-declared CSP (e.g. Inline Visualizer's strict/balanced/none) |
-| Auto-height resize | ✅ Injected via the tool | ✅ Built-in |
-| Theme awareness | ❌ Not in spec | ✅ CSS variables auto-injected |
+| Content Security Policy | ✅ Server-declared CSP | ✅ Via Tool declared CSP (e.g. Inline Visualizer's strict/balanced/none) |
+| Auto-height resize | ✅ Injected via the tool | ✅ Built into HTML or injected by tool |
+| Theme awareness | ❌ Not in spec | ✅ Via auto-injected CSS variables |
 | Dynamic content per call | ℹ️ Static resource + data injection | ✅ Fully dynamic HTML per invocation |
-| Bidirectional communication | ℹ️ JSON-RPC via SDK | ✅ native postMessage bridge (sendPrompt, openLink) |
+| Bidirectional communication | ℹ️ JSON-RPC via SDK | ✅ Via native postMessage bridge (sendPrompt, openLink) |
 | External dependencies | ⚠️ Requires MCP server with ext-apps | ✅ None — tool generates HTML directly |
 | Ecosystem portability | ✅ Works across MCP-Apps compatible hosts | ❌ Open WebUI only |
 
-The key tradeoff: MCP Apps offer **ecosystem portability** — the same UI resource works in any MCP-compatible host. Open WebUI's native Rich UI offers **more flexibility and tighter integration** — fully dynamic HTML generation, theme awareness, and bidirectional communication without external dependencies.
+The key tradeoff: MCP Apps offer **ecosystem portability** — the same UI resource works in any MCP-compatible host. Open WebUI's native Rich UI offers **more flexibility, tighter integration and no additional dependencies** — fully dynamic HTML generation, theme awareness, and bidirectional communication without external dependencies.
 
 This bridge lets you have both: MCP App UIs render in Open WebUI using the same Rich UI pipeline that native tools use.
