@@ -57,7 +57,8 @@ The bridge honors the MCP Apps spec security model:
 
 1. Copy the contents of `tool.py`
 2. In Open WebUI, go to **Workspace → Tools → + Create New**
-3. Paste the code and click **Save**
+3. Paste the code
+4. Name it **MCP App Bridge** (or whatever you want) and click **Save**
 
 ### 2. Configure Valves
 
