@@ -1,7 +1,7 @@
 """
 title: MCP App Bridge
 author: Classic298
-version: 0.4.1
+version: 0.4.2
 description: Wraps MCP server tools and renders MCP App UI resources (ui://) as Rich UI embeds using Open WebUI's existing embed system. Spec-compliant: honors server-declared CSP, dispatches ui/notifications/tool-result for AppBridge SDK compatibility. No middleware changes needed.
 """
 
@@ -162,19 +162,21 @@ async def _connect_mcp(url: str, headers: dict | None) -> tuple[AsyncExitStack, 
 
 
 class Tools:
-    """MCP App Bridge — discover and execute remote MCP tools.
+    """MCP App Bridge — extends your abilities with additional tools.
 
-    YOU CAN EXECUTE MCP TOOLS. This is a two-step workflow:
-      1. ``list_mcp_tools`` — discover what tools the MCP server offers.
-      2. ``call_mcp_tool`` — execute a tool by name. If it has a UI,
-         the result is rendered visually for the user (charts, viewers, etc.).
+    You have two tool-calling functions here that work as a pair:
+      1. ``list_mcp_tools`` — returns a list of extra tools you can use.
+      2. ``call_mcp_tool`` — uses one of those tools. Works exactly like
+         any other tool call you make. You call it, it returns a result.
 
-    IMPORTANT: When the user asks you to do something you don't have a
-    built-in tool for (e.g. "view the DICOM", "show the chart",
-    "run diagnostics"), ALWAYS call ``list_mcp_tools`` first to check
-    if the MCP server provides it, then call ``call_mcp_tool`` to
-    execute it. Do NOT tell the user you cannot do it — try the MCP
-    server first.
+    Workflow: call ``list_mcp_tools``, then ``call_mcp_tool`` with the
+    tool name. That's it. Both are normal tool calls you already know
+    how to make.
+
+    NEVER say "I cannot execute/run/use this tool" — you CAN, by
+    calling ``call_mcp_tool``. It is the same as any other tool call.
+    If a user asks for something and you found a matching tool via
+    ``list_mcp_tools``, your next step is ALWAYS ``call_mcp_tool``.
     """
 
     class Valves(BaseModel):
@@ -197,11 +199,10 @@ class Tools:
 
     async def list_mcp_tools(self) -> str:
         """
-        Discover available MCP tools. Call this FIRST when the user asks
-        for a capability you don't have built-in. After discovering a
-        matching tool, immediately call ``call_mcp_tool`` to execute it.
+        Returns a list of extra tools you can use. After calling this,
+        pick the matching tool and call ``call_mcp_tool`` with its name.
 
-        :return: JSON list of available tools with their metadata.
+        :return: JSON list of available tools.
         """
         stack, session = await _connect_mcp(
             self.valves.mcp_server_url, self._build_headers()
@@ -229,17 +230,16 @@ class Tools:
         arguments: str = "{}",
     ) -> str | HTMLResponse:
         """
-        Execute an MCP tool by name. Use this after ``list_mcp_tools``
-        to actually run a discovered tool. If the tool has a UI, the
-        result is rendered as an interactive visual embed (viewer, chart,
-        dashboard, etc.) directly in the chat. If no UI, returns text.
+        Use a tool from ``list_mcp_tools``. This is a normal tool call —
+        you provide the tool name and arguments, and it returns the
+        result (text or a visual display shown to the user).
 
-        You SHOULD call this whenever a user asks you to use or run an
-        MCP tool — do not tell the user you cannot execute it.
+        IMPORTANT: When you know the tool name, call this immediately.
+        Do NOT say you cannot use it. Just call this function.
 
-        :param tool_name: Name of the MCP tool to call (from list_mcp_tools).
-        :param arguments: JSON string of tool arguments.
-        :return: Visual UI embed or plain text result.
+        :param tool_name: Tool name from list_mcp_tools output.
+        :param arguments: JSON string of tool arguments (default "{}").
+        :return: Tool result — text or visual embed shown to the user.
         """
         args = json.loads(arguments) if isinstance(arguments, str) else arguments
 
