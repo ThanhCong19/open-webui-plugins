@@ -7,6 +7,12 @@ Renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (SEP-1865) 
 
 When an MCP server declares a `ui://` resource on a tool, this bridge fetches the HTML, injects the tool result data, applies the server-declared Content Security Policy, and renders it inline in the chat.
 
+### Demo
+
+| Bar Chart | KPI Dashboard | Donut Chart |
+|---|---|---|
+| ![Bar Chart](assets/demo-bar-chart.png) | ![Dashboard](assets/demo-dashboard.png) | ![Donut Chart](assets/demo-donut-chart.png) |
+
 ## How It Works
 
 1. **Model calls `list_mcp_tools`** → discovers tools on the MCP server, including which ones have UI resources
