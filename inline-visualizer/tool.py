@@ -1,7 +1,7 @@
 """
 title: Inline Visualizer
 author: Classic298
-version: 1.3.2
+version: 1.4.0
 description: Renders interactive HTML/SVG visualizations inline in chat. For design system instructions, the model should call view_skill("visualize").
 """
 
@@ -516,7 +516,7 @@ class Tools:
         self,
         html_code: str,
         title: str = "Visualization",
-    ) -> HTMLResponse:
+    ) -> tuple:
         """
         Render an interactive HTML or SVG visualization inline in the chat.
 
@@ -544,10 +544,18 @@ class Tools:
                           <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>.
                           For complex visualizations, load D3 via <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>.
         :param title: Short descriptive title for the visualization.
-        :return: Interactive rich embed rendered in the chat.
+        :return: Interactive rich embed rendered in the chat, with LLM context.
         """
-        return HTMLResponse(
+        response = HTMLResponse(
             content=_build_html(html_code, self.valves.security_level),
             headers={"Content-Disposition": "inline"},
         )
+        result_context = (
+            f'Visualization "{title}" is now rendered and visible to the user as an '
+            f"interactive embed. Do NOT echo back the HTML/SVG source code. Instead, "
+            f"briefly describe what the visualization shows in plain language. If the "
+            f"visualization has interactive elements (clickable nodes, buttons, sliders), "
+            f"mention what the user can interact with."
+        )
+        return response, result_context
 

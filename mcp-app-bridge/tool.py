@@ -1,7 +1,7 @@
 """
 title: MCP App Bridge
 author: Classic298
-version: 0.4.2
+version: 0.5.0
 description: Wraps MCP server tools and renders MCP App UI resources (ui://) as Rich UI embeds using Open WebUI's existing embed system. Spec-compliant: honors server-declared CSP, dispatches ui/notifications/tool-result for AppBridge SDK compatibility. No middleware changes needed.
 """
 
@@ -231,7 +231,7 @@ class Tools:
         self,
         tool_name: str,
         arguments: str = "{}",
-    ) -> str | HTMLResponse:
+    ) -> str | tuple:
         """
         Use a tool discovered via ``list_mcp_tools``. This is a normal
         tool call — you provide the name and arguments, it returns a
@@ -376,10 +376,20 @@ class Tools:
             else:
                 html_content = "<head>" + injection + "</head>\n" + html_content
 
-            # --- Return as Rich UI embed ---
-            return HTMLResponse(
+            # --- Return as Rich UI embed with LLM context ---
+            response = HTMLResponse(
                 content=html_content,
                 headers={"Content-Disposition": "inline"},
             )
+            result_context = (
+                f'MCP tool "{tool_name}" executed successfully and its UI is now '
+                f"rendered and visible to the user. Briefly describe what the tool "
+                f"did or what the user can see."
+            )
+            if result_text:
+                result_context += (
+                    f" The tool returned the following data:\n{result_text}"
+                )
+            return response, result_context
         finally:
             await stack.aclose()
