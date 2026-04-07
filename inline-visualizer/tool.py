@@ -1,7 +1,7 @@
 """
 title: Inline Visualizer
 author: Classic298
-version: 1.4.3
+version: 1.5.0
 description: Renders interactive HTML/SVG visualizations inline in chat. For design system instructions, the model should call view_skill("visualize").
 """
 
@@ -233,6 +233,26 @@ code {
   font-family: var(--font-mono); font-size: 13px; background: var(--color-bg-tertiary);
   padding: 2px 6px; border-radius: 4px;
 }
+#iv-dl-wrap{position:fixed;top:4px;right:4px;z-index:9999}
+#iv-dl-btn{width:26px;height:26px;padding:0;display:flex;align-items:center;justify-content:center;
+  opacity:0.3;border-color:var(--color-border-tertiary);background:var(--color-bg-primary)}
+#iv-dl-btn:hover{opacity:0.9;background:var(--color-bg-secondary)}
+#iv-dl-btn svg{width:14px;height:14px;stroke:var(--color-text-secondary);fill:none;
+  stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+/* --- Print ---
+ * overflow:hidden on html/body clips content in print (needed on screen
+ * for iframe sizing). Chart.js canvas scaling is handled by JS beforeprint
+ * handler in BODY_SCRIPTS — it directly mutates inline styles that CSS
+ * cannot reliably override in Chrome's print engine.
+ */
+@media print {
+  @page { margin: 12mm; }
+  html, body { overflow: visible !important; height: auto !important;
+    background: #fff !important; }
+  body { padding: 4px !important; }
+  #iv-dl-wrap { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 """
 
 # ---------------------------------------------------------------------------
@@ -295,7 +315,6 @@ THEME_DETECTION_SCRIPT = """
 
 BODY_SCRIPTS = """
 <script>
-
 // --- Height reporting ---
 var _rh_last = 0;          // last reported height
 var _rh_consecutive = 0;   // consecutive small-growth reports
@@ -409,8 +428,10 @@ window.addEventListener('load', function() {
   }
 
   // SVG axis-label overlap — stagger only labels in a tight horizontal band
-  // (skips complex diagrams where text is scattered across the full canvas)
+  // (skips complex diagrams where text is scattered across the full canvas).
+  // Opt-out: add data-no-stagger to any <svg> to disable for that element.
   document.querySelectorAll('svg').forEach(function(svg) {
+    if (svg.hasAttribute('data-no-stagger')) return;
     var texts = Array.from(svg.querySelectorAll('text'));
     if (texts.length < 4) return;
     // Collect bounding info for all visible texts
@@ -487,11 +508,238 @@ function openLink(url) {
   try { parent.window.open(url, '_blank'); }
   catch(e) { window.open(url, '_blank'); }
 }
+
+// --- Print fix for Chart.js canvases ---
+// Chart.js sets explicit pixel widths as inline styles on canvas and its
+// container div at render time (e.g. style="width: 1400px"). CSS max-width
+// from a stylesheet can't reliably override this in Chrome's print engine.
+// Fix: directly mutate inline styles before print, restore after.
+(function() {
+  window.addEventListener('beforeprint', function() {
+    document.querySelectorAll('canvas').forEach(function(c) {
+      c.setAttribute('data-print-style', c.style.cssText);
+      c.style.setProperty('width', '100%', 'important');
+      c.style.setProperty('max-width', '100%', 'important');
+      c.style.setProperty('height', 'auto', 'important');
+      var p = c.parentElement;
+      if (p) {
+        p.setAttribute('data-print-style', p.style.cssText);
+        p.style.setProperty('width', '100%', 'important');
+        p.style.setProperty('max-width', '100%', 'important');
+      }
+    });
+  });
+  window.addEventListener('afterprint', function() {
+    document.querySelectorAll('[data-print-style]').forEach(function(el) {
+      el.style.cssText = el.getAttribute('data-print-style');
+      el.removeAttribute('data-print-style');
+    });
+  });
+})();
+
+// --- Download visualization as self-contained HTML ---
+var _ivLang = 'en';
+var _ivStr = {
+  // Required languages
+  en: 'Download as HTML',
+  de: 'Als HTML herunterladen',
+  cs: 'Stáhnout jako HTML',
+  hu: 'Letöltés HTML-ként',
+  hr: 'Preuzmi kao HTML',
+  pl: 'Pobierz jako HTML',
+  fr: 'Télécharger en HTML',
+  nl: 'Downloaden als HTML',
+  // Western & Southern European
+  es: 'Descargar como HTML',
+  pt: 'Baixar como HTML',
+  it: 'Scarica come HTML',
+  ca: 'Baixa com a HTML',
+  gl: 'Descargar como HTML',
+  eu: 'Deskargatu HTML gisa',
+  // Northern European
+  da: 'Download som HTML',
+  sv: 'Ladda ner som HTML',
+  no: 'Last ned som HTML',
+  fi: 'Lataa HTML-tiedostona',
+  is: 'Hlaða niður sem HTML',
+  // Eastern European & Slavic
+  sk: 'Stiahnuť ako HTML',
+  sl: 'Prenesi kot HTML',
+  sr: 'Преузми као HTML',
+  bs: 'Preuzmi kao HTML',
+  bg: 'Изтегли като HTML',
+  mk: 'Преземи како HTML',
+  uk: 'Завантажити як HTML',
+  ru: 'Скачать как HTML',
+  be: 'Спампаваць як HTML',
+  // Baltic
+  lt: 'Atsisiųsti kaip HTML',
+  lv: 'Lejupielādēt kā HTML',
+  et: 'Laadi alla HTML-ina',
+  // Other European
+  ro: 'Descarcă ca HTML',
+  el: 'Λήψη ως HTML',
+  sq: 'Shkarko si HTML',
+  // Middle Eastern
+  tr: 'HTML olarak indir',
+  ar: 'تحميل كـ HTML',
+
+  he: 'הורד כ-HTML',
+  // East & South Asian
+  zh: '下载为HTML',
+  ja: 'HTMLでダウンロード',
+  ko: 'HTML로 다운로드',
+  vi: 'Tải xuống dạng HTML',
+  th: 'ดาวน์โหลดเป็น HTML',
+  id: 'Unduh sebagai HTML',
+  ms: 'Muat turun sebagai HTML',
+  hi: 'HTML के रूप में डाउनलोड करें',
+  bn: 'HTML হিসেবে ডাউনলোড করুন',
+  // African
+  sw: 'Pakua kama HTML'
+};
+(function() {
+  function detectLang() {
+    // 1. Pre-detected via __event_call__ (baked into HTML by the tool)
+    var pre = document.documentElement.getAttribute('data-iv-lang');
+    if (pre && _ivStr[pre]) return pre;
+    // 2. Fallback: parent localStorage (needs same-origin)
+    try {
+      var s = parent.localStorage.getItem('locale')
+           || parent.localStorage.getItem('language')
+           || parent.localStorage.getItem('i18nextLng');
+      if (s) { var l = s.split('-')[0].toLowerCase(); if (_ivStr[l]) return l; }
+    } catch(e) {}
+    // 3. Fallback: browser language (standalone HTML / no same-origin)
+    try {
+      var bl = (navigator.language || navigator.userLanguage || 'en').split('-')[0].toLowerCase();
+      if (_ivStr[bl]) return bl;
+    } catch(e) {}
+    return 'en';
+  }
+  _ivLang = detectLang();
+  var btn = document.getElementById('iv-dl-btn');
+  if (btn) btn.title = _ivStr[_ivLang] || _ivStr.en;
+})();
+
+// ---------------------------------------------------------------------------
+// Download as self-contained HTML
+// ---------------------------------------------------------------------------
+//
+// Strategy — why blob <a download>, and why iOS needs special handling:
+//
+//   Desktop / Android:
+//     Blob + <a download> triggers the browser's native "Save As" dialog.
+//     target="_blank" is added as a safety net: if the iframe sandbox lacks
+//     the allow-downloads permission, the click gracefully opens the HTML
+//     in a new tab instead of navigating (and destroying) the iframe. The
+//     user can then save from the new tab. Non-destructive fallback.
+//
+//   iOS (Safari AND PWA / standalone):
+//     Blob + <a download> triggers the iOS share sheet / download manager.
+//     This is the ONLY approach that works reliably on iOS:
+//       - target="_blank" MUST NOT be set. In PWA / standalone mode it
+//         navigates the entire app away from the chat with NO back button —
+//         the user is stuck on the blob page and must re-launch the app.
+//         In Safari it opens a new tab showing raw HTML source instead of
+//         triggering the download sheet.
+//       - The blob click is deferred via setTimeout(0) so the calling
+//         function returns cleanly before WebKit processes the navigation.
+//         Without this, iOS WebKit can throw a synchronous "Load failed"
+//         TypeError that propagates as an error toast in Open WebUI.
+//       - window.onerror and unhandledrejection listeners suppress the
+//         "Load failed" error for 60 s, then restore the original handlers.
+//         This is the same pattern used by the PDF export and Gamma
+//         presentation actions, which discovered these iOS quirks through
+//         extensive production testing.
+//
+// iOS detection: UA string catches iPhone/iPod; the MacIntel +
+// maxTouchPoints > 1 heuristic catches iPadOS (reports as desktop Mac).
+// ---------------------------------------------------------------------------
+
+var _ivIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function _ivDownload() {
+  // Clean up the serialized HTML for standalone use:
+  // - Remove download button (not needed in saved file)
+  // - Strip overflow:hidden so the file is scrollable in a browser
+  var w = document.getElementById('iv-dl-wrap');
+  if (w) w.remove();
+  var html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+  if (w) document.body.appendChild(w);
+  html = html.replace('html, body { overflow: hidden; }', '');
+
+  var fname = (document.title || 'visualization').replace(/[<>:"\\/|?*]+/g, '-').replace(/\s+/g, ' ').trim();
+  if (!fname) fname = 'visualization';
+  // Cap at 200 chars to stay within Windows 255-char filename limit
+  // (leaves room for the .html extension and filesystem overhead).
+  if (fname.length > 200) fname = fname.substring(0, 200).trim();
+  fname += '.html';
+
+  var blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+
+  if (_ivIsIOS) {
+    // iOS path — deferred blob download with "Load failed" error
+    // suppression. Mirrors the battle-tested approach from the PDF
+    // export and Gamma presentation actions.
+    setTimeout(function() {
+      // Suppress iOS WebKit "Load failed" TypeError that fires on
+      // blob <a> clicks. Without this, Open WebUI shows an error toast.
+      var _origOnerror = window.onerror;
+      window.onerror = function(msg) {
+        if (typeof msg === 'string' && msg.indexOf('Load failed') !== -1) return true;
+        if (_origOnerror) return _origOnerror.apply(this, arguments);
+      };
+      var _sup = function(ev) {
+        var m = ev && (ev.message || (ev.reason && ev.reason.message) || '');
+        if (m.indexOf('Load failed') !== -1) { ev.preventDefault(); ev.stopImmediatePropagation(); return true; }
+      };
+      window.addEventListener('error', _sup, true);
+      window.addEventListener('unhandledrejection', _sup, true);
+
+      var a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = fname;
+      // No target="_blank" — see comment block above.
+      document.body.appendChild(a);
+      a.click();
+
+      // Restore original error handlers and clean up after 60 s.
+      setTimeout(function() {
+        window.onerror = _origOnerror;
+        window.removeEventListener('error', _sup, true);
+        window.removeEventListener('unhandledrejection', _sup, true);
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 60000);
+    }, 0);
+  } else {
+    // Desktop / Android path — straightforward blob download.
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    // Safety net: if the iframe sandbox blocks the download,
+    // open in a new tab rather than navigating the iframe.
+    a.target = '_blank';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { a.remove(); URL.revokeObjectURL(url); }, 60000);
+  }
+}
 </script>
 """
 
 # ---------------------------------------------------------------------------
-# STRICT-mode script — strips query params from all navigation and links
+# STRICT-mode script — query-parameter hygiene for link navigation.
+# Strips search params from openLink(), window.open(), and <a href>.
+# This is supplementary hygiene, NOT a hard exfiltration control —
+# data can still appear in URL paths/fragments, and location.assign/
+# replace are not intercepted. The primary exfil blocker is the CSP
+# connect-src directive.
 # ---------------------------------------------------------------------------
 
 STRICT_SECURITY_SCRIPT = """
@@ -534,16 +782,37 @@ STRICT_SECURITY_SCRIPT = """
 # Kept for backwards compatibility in case anything references the old name
 INJECTED_SCRIPTS = BODY_SCRIPTS
 
+DOWNLOAD_BUTTON = (
+    '<div id="iv-dl-wrap">'
+    '<button id="iv-dl-btn" onclick="_ivDownload()" title="Download">'
+    '<svg viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M3 12h10"/></svg>'
+    '</button></div>'
+)
 
-_WRAPPER_TAG_RE = re.compile(
-    r'<!DOCTYPE[^>]*>|</?html[^>]*>|</?head[^>]*>|</?body[^>]*>|<meta[^>]*/?>',
+
+# Only match wrapper tags at document boundaries — not globally — so that
+# legitimate occurrences inside JS strings or template literals survive.
+# Leading pattern: optional whitespace then any mix of DOCTYPE/html/head/
+# body-open/meta tags (models hallucinate full document wrappers).
+# Trailing pattern: </body> and </html> close tags at the end.
+_LEADING_WRAPPER_RE = re.compile(
+    r'^(\s*(?:<!DOCTYPE[^>]*>|</?html[^>]*>|</?head[^>]*>|<body[^>]*>|<meta[^>]*/?>)\s*)+',
+    re.IGNORECASE,
+)
+_TRAILING_WRAPPER_RE = re.compile(
+    r'(\s*(?:</body\s*>|</html\s*>)\s*)+$',
     re.IGNORECASE,
 )
 
 
 def _sanitize_content(content: str) -> str:
-    """Strip document wrapper tags that models sometimes include."""
-    content = _WRAPPER_TAG_RE.sub('', content)
+    """Strip document wrapper tags that models sometimes include.
+
+    Only removes tags at the start and end of the content so that identical
+    tokens appearing inside script strings or template literals are preserved.
+    """
+    content = _LEADING_WRAPPER_RE.sub('', content)
+    content = _TRAILING_WRAPPER_RE.sub('', content)
     # Collapse runs of 3+ blank lines into a single blank line
     content = re.sub(r'\n{3,}', '\n\n', content)
     return content.strip()
@@ -598,17 +867,24 @@ def _build_csp_tag(level: str) -> str:
     )
 
 
-def _build_html(content: str, security_level: str = "strict") -> str:
+def _build_html(content: str, security_level: str = "strict",
+                title: str = "Visualization", lang: str = "en") -> str:
     """Wrap a user-provided HTML/SVG fragment in the full Rich UI shell."""
     content = _sanitize_content(content)
     csp_tag = _build_csp_tag(security_level)
     strict_script = STRICT_SECURITY_SCRIPT if security_level == "strict" else ""
+    safe_title = (title.replace('&', '&amp;').replace('<', '&lt;')
+                       .replace('>', '&gt;').replace('"', '&quot;'))
+    # Sanitize lang to a simple lowercase BCP-47 primary subtag.
+    # Split on '-' first so "zh-CN" → "zh", not "zhcn".
+    safe_lang = re.sub(r'[^a-z]', '', lang.split('-')[0].lower()[:5]) or "en"
     return (
-        "<!DOCTYPE html><html><head>"
+        f'<!DOCTYPE html><html data-iv-lang="{safe_lang}"><head>'
+        f"<title>{safe_title}</title>"
         f"{csp_tag}"
         f"<style>{THEME_CSS}\n{SVG_CLASSES}\n{BASE_STYLES}</style>"
         f"{THEME_DETECTION_SCRIPT}"
-        f"</head><body>\n{content}\n{BODY_SCRIPTS}{strict_script}</body></html>"
+        f"</head><body>\n{content}\n{DOWNLOAD_BUTTON}\n{BODY_SCRIPTS}{strict_script}</body></html>"
     )
 
 
@@ -618,40 +894,57 @@ def _build_html(content: str, security_level: str = "strict") -> str:
 
 # Developer reference for security levels:
 #
-#   STRICT   — Blocks all outbound requests, form submissions, external images,
-#              embedded objects, and base-URI hijacking. Injects a script that
-#              strips URL query parameters from all navigation. Recommended default.
+#   STRICT   — Containment-oriented default. Blocks outbound fetch/XHR
+#              (connect-src 'none'), form submissions, external images,
+#              embedded objects, and base-URI hijacking. Injects a script
+#              that strips URL query parameters from link navigation as
+#              additional hygiene (query-only; does not cover path or
+#              fragment, and does not intercept location.assign/replace).
+#              Script execution within the visualization is intentionally
+#              allowed ('unsafe-inline' + CDN allowlist) — this is
+#              required for Chart.js, D3, and interactive visualizations.
 #
 #   BALANCED — Same as STRICT but allows external image loading (img-src *).
-#              No URL parameter stripping.
+#              No URL parameter stripping. Note: img-src * permits
+#              tracking pixels — this is an accepted privacy tradeoff
+#              for visualizations that need external images.
 #
-#   NONE     — No CSP applied. Visualization can make arbitrary network requests.
+#   NONE     — No CSP applied. Visualization can make arbitrary network
+#              requests. Use only for visualizations that fetch live API
+#              data (CORS restrictions still apply).
 #
-# None of these levels can prevent parent document access when iframe
-# Same-Origin is enabled — that is controlled at the platform level.
+# Limitations that apply to ALL levels:
+# - Script execution is always permitted (required for core features).
+# - When iframe Same-Origin is enabled at the platform level, JS inside
+#   the visualization can access the parent Open WebUI page. No CSP
+#   level can prevent this — it is controlled by the platform setting.
 
 
 class Tools:
     """Inline Visualizer — renders interactive HTML/SVG in chat.
 
     Security is controlled via the ``security_level`` valve, which applies
-    a Content Security Policy to the rendered iframe. Defaults to STRICT,
-    blocking all silent data exfiltration vectors.
+    a Content Security Policy to the rendered iframe.  Defaults to STRICT,
+    which blocks outbound network requests (fetch/XHR) and form submissions.
+    Script execution is always permitted — it is required for interactive
+    visualizations, Chart.js, and D3.  See the developer reference above
+    for the full security model and its limitations.
     """
 
     class Valves(BaseModel):
         security_level: Literal["strict", "balanced", "none"] = Field(
             default="strict",
-            description="Strict (default): blocks outbound requests, images, and forms. Balanced: allows external images. None: no restrictions.",
+            description="Strict (default): blocks outbound fetch/XHR, images, and forms; scripts always allowed. Balanced: also allows external images. None: no restrictions.",
         )
 
     def __init__(self):
         self.valves = self.Valves()
 
-    def render_visualization(
+    async def render_visualization(
         self,
         html_code: str,
         title: str = "Visualization",
+        __event_call__=None,
     ) -> tuple:
         """
         Render an interactive HTML or SVG visualization inline in the chat.
@@ -682,8 +975,39 @@ class Tools:
         :param title: Short descriptive title for the visualization.
         :return: Interactive rich embed rendered in the chat, with LLM context.
         """
+        # Detect UI language via parent page JS (same pattern as PDF/Gamma actions)
+        lang = "en"
+        if __event_call__:
+            try:
+                lang_result = await __event_call__({
+                    "type": "execute",
+                    "data": {
+                        "code": """
+return (() => {
+  try {
+    const stored = localStorage.getItem('locale')
+                || localStorage.getItem('language')
+                || localStorage.getItem('i18nextLng');
+    if (stored) {
+      const l = stored.split('-')[0].toLowerCase();
+      if (l) return l;
+    }
+  } catch (e) {}
+  try {
+    return (navigator.language || navigator.userLanguage || 'en').split('-')[0].toLowerCase();
+  } catch (e) {}
+  return 'en';
+})();
+"""
+                    },
+                })
+                if isinstance(lang_result, str) and lang_result.strip():
+                    lang = lang_result.strip()
+            except Exception:
+                pass
+
         response = HTMLResponse(
-            content=_build_html(html_code, self.valves.security_level),
+            content=_build_html(html_code, self.valves.security_level, title, lang),
             headers={"Content-Disposition": "inline"},
         )
         result_context = (
