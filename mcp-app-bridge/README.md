@@ -2,6 +2,8 @@
 
 Renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (SEP-1865) as Rich UI embeds in Open WebUI — using the existing embed system, no middleware changes needed.
 
+> **🚀 [Jump to Setup Guide](#setup)** — get up and running in under 1 minute.
+
 > [!NOTE]
 > This tool follows the MCP protocol's [dynamic tool discovery pattern](#mcp-dynamic-tool-discovery) — and aligns with Anthropic's [Tool Search Tool](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/tool-search-tool) concept, where tools are discovered and loaded on demand rather than pre-registered in the model's context.
 
