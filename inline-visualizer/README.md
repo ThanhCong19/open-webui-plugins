@@ -2,6 +2,7 @@
 
 Renders interactive HTML/SVG visualizations inline in chat. Includes a full design system with theme-aware colors, SVG utility classes, and a communication bridge that lets visualizations send prompts back to the chat.
 
+> [!TIP]
 > **🚀 [Jump to Setup Guide](#setup)** — get up and running in under 1 minute.
 
 <table>
