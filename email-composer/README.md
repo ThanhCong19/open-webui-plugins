@@ -2,6 +2,7 @@
 
 AI-powered email drafting with an interactive Rich UI card embedded directly in chat.
 
+> [!TIP]
 > **🚀 [Jump to Setup Guide](#setup)** — get up and running in under 1 minute.
 
 ![Preview](assets/preview.png)
