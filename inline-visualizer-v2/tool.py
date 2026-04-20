@@ -1730,12 +1730,16 @@ STREAMING_OBSERVER_SCRIPT = """
   // double-escape mode (corrupts our enclosing element boundary).
   var _ivOpen = '<' + 'script';
   var _ivClose = '<' + '\\/script>';
-  var _ivStripPaired = new RegExp(_ivOpen + '[\\s\\S]*?' + _ivClose, 'gi');
-  var _ivStripOpen = new RegExp(_ivOpen + '[\\s\\S]*$', 'i');
+  var _ivStripPaired = new RegExp(_ivOpen + '[\\\\s\\\\S]*?' + _ivClose, 'gi');
+  var _ivStripOpen = new RegExp(_ivOpen + '[\\\\s\\\\S]*$', 'i');
+  // Strip document-level tags that models sometimes wrap VIZ content in.
+  // These are invalid inside a div's innerHTML and mangle the DOM tree.
+  var _ivStripDocTags = new RegExp('<' + '!DOCTYPE[^>]*>|<' + '/?(?:html|head|body)[^>]*>', 'gi');
   function renderSafeInto(text, withScripts) {
     var html = withScripts
       ? text
       : text.replace(_ivStripPaired, '').replace(_ivStripOpen, '');
+    html = html.replace(_ivStripDocTags, '');
     var temp = document.createElement('div');
     try {
       temp.innerHTML = html;

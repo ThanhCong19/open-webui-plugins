@@ -14,7 +14,7 @@ You call the tool with **only a title**, and then emit the HTML/SVG content wrap
 1. Call `render_visualization(title="…")`
 2. In your text response, write explanatory prose
 3. Open with `@@@VIZ-START` on its own line
-4. Emit the HTML/SVG **content fragment** (no `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`)
+4. Emit the HTML/SVG **content fragment only** — **NEVER** wrap in `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags (the iframe already has these; duplicating them corrupts the DOM)
 5. Close with `@@@VIZ-END` on its own line
 6. Continue with any follow-up prose
 
@@ -549,3 +549,4 @@ You do NOT need `DOMContentLoaded` or `window.onload` wrappers — by the time y
 8. **Missing arrow marker in defs** — always include it
 9. **Hardcoded colors** — always use CSS variables or ramp classes
 10. **Chart.js canvas collapsed to 0 height** — wrap every canvas in `<div style="position: relative; height: Xpx;">` and set `maintainAspectRatio: false`
+11. **Document wrapper tags** — never emit `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>`. The iframe shell already provides these. Including them mangles the DOM and breaks script execution
