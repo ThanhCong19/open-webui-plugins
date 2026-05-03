@@ -2,6 +2,7 @@
 title: Inline Visualizer v2
 author: Classic298
 version: 2.0.0
+required_open_webui_version: 0.9.2
 description: Renders interactive HTML/SVG visualizations inline in chat. Requires "iframe Sandbox Allow Same Origin" to be enabled in Open WebUI Settings -> Interface. For design instructions, the model should call view_skill("visualize").
 """
 
@@ -160,6 +161,30 @@ THEME_CSS = """
   --primary-foreground: #1A1A1A;
   --accent: #a78bfa;
   --accent-foreground: #ffffff;
+}
+
+/* --- Named accent palette ---
+ * Apply data-accent="<name>" on <html> for global, on any element
+ * for local override. The variants reuse the existing color-ramp
+ * stroke colors so charts and forms share visual vocabulary
+ * (teal here = teal in a chart). Each variant works in both
+ * light and dark themes — --accent picks up the ramp's per-theme
+ * stroke automatically; --accent-foreground flips dark in dark
+ * mode so text stays legible on pastel accents.
+ */
+[data-accent="purple"] { --accent: var(--ramp-purple-stroke); --accent-foreground: #ffffff; }
+[data-accent="teal"]   { --accent: var(--ramp-teal-stroke);   --accent-foreground: #ffffff; }
+[data-accent="coral"]  { --accent: var(--ramp-coral-stroke);  --accent-foreground: #ffffff; }
+[data-accent="pink"]   { --accent: var(--ramp-pink-stroke);   --accent-foreground: #ffffff; }
+[data-accent="gray"]   { --accent: var(--ramp-gray-stroke);   --accent-foreground: #ffffff; }
+[data-accent="blue"]   { --accent: var(--ramp-blue-stroke);   --accent-foreground: #ffffff; }
+[data-accent="green"]  { --accent: var(--ramp-green-stroke);  --accent-foreground: #ffffff; }
+[data-accent="amber"]  { --accent: var(--ramp-amber-stroke);  --accent-foreground: #ffffff; }
+[data-accent="red"]    { --accent: var(--ramp-red-stroke);    --accent-foreground: #ffffff; }
+
+[data-theme="dark"] [data-accent],
+[data-theme="dark"][data-accent] {
+  --accent-foreground: #1A1A1A;
 }
 """
 
@@ -977,7 +1002,25 @@ function _ivDownload() {
   // Strip download button + overflow:hidden for standalone use.
   var w = document.getElementById('iv-dl-wrap');
   if (w) w.remove();
-  var html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+
+  // Serialize from a clone so we can relocate model-imported scripts
+  // without mutating the live iframe. enqueueScript appended each
+  // imported <script> to <head> for sequenced execution during streaming
+  // — but in a fresh standalone load, head scripts run BEFORE the body
+  // is parsed, so any getElementById('chart-canvas') etc. returns null.
+  // Move tagged scripts to the end of <body> so they execute after the
+  // canvases / DOM nodes they reference.
+  var docClone = document.documentElement.cloneNode(true);
+  var headClone = docClone.querySelector('head');
+  var bodyClone = docClone.querySelector('body');
+  if (headClone && bodyClone) {
+    var imported = headClone.querySelectorAll('script[data-iv-imported="1"]');
+    for (var ii = 0; ii < imported.length; ii++) {
+      bodyClone.appendChild(imported[ii]);
+    }
+  }
+  var html = '<!DOCTYPE html>\\n' + docClone.outerHTML;
+
   if (w) document.body.appendChild(w);
   html = html.replace('html, body { overflow: hidden; }', '');
 
@@ -1158,6 +1201,31 @@ STREAMING_OBSERVER_SCRIPT = """
   //     CodeMirror never touch them → no virtualization edge cases.
   var START_MARK = '@@@VIZ-START';
   var END_MARK = '@@@VIZ-END';
+
+  // Original-text store for in-place text blanking. Setting
+  // textNode.nodeValue = '' is the only Svelte-safe way to hide a
+  // text node mid-stream — wrapping moves the node under a new
+  // parent and breaks Svelte's tracked references, stalling
+  // subsequent chunks. But the iframe's state machine still needs
+  // to read the original marker text to pair @@@VIZ-START /
+  // @@@VIZ-END. Stash the latest live value here on every blank;
+  // readers go through getEffectiveText() so a blanked node's
+  // marker substring is still detected.
+  var _ivOriginalText = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+  function getEffectiveText(tn) {
+    if (!tn) return '';
+    var v = tn.nodeValue || '';
+    if (v === '' && _ivOriginalText && _ivOriginalText.has(tn)) {
+      return _ivOriginalText.get(tn) || '';
+    }
+    return v;
+  }
+  function blankPreserving(tn) {
+    var current = tn.nodeValue || '';
+    if (current === '') return;  // already blanked, idempotent no-op
+    if (_ivOriginalText) _ivOriginalText.set(tn, current);
+    try { tn.nodeValue = ''; } catch(e) {}
+  }
   // Regex finds one block. Non-greedy, handles unclosed (streaming) by
   // falling through to end-of-input. Match [1] is the inner SVG source.
   // `+?` (not `*?`) forces at least 1 char of body — otherwise, the
@@ -1212,7 +1280,26 @@ STREAMING_OBSERVER_SCRIPT = """
     try {
       var f = window.frameElement;
       if (!f) return null;
-      myMessage = f.closest && f.closest('[id^="message-"]');
+      // Prefer the chat-assistant wrapper, fall through to response-
+      // content-container, then to the message div.
+      //
+      // The chat-assistant wrapper is the body of the assistant
+      // message — toolbar buttons and the follow-up suggestions row
+      // are siblings of it, not descendants, so scoping here excludes
+      // them (the bug we hit when the model truncated without
+      // emitting @@@VIZ-END).
+      //
+      // Why not just response-content-container: during streaming,
+      // Open WebUI buffers the incoming text outside that inner
+      // container — the container only fully populates on rehydrate.
+      // Probe data: post-reload textContent was 11.3KB inside
+      // response-content-container vs 3.1KB during streaming. The
+      // chat-assistant wrapper contains BOTH the streaming buffer
+      // and the settled content, so it stays correct in both phases.
+      myMessage = (f.closest && f.closest('.chat-assistant'))
+        || (f.closest && f.closest('#response-content-container'))
+        || (f.closest && f.closest('[id^="message-"]'))
+        || null;
       return myMessage;
     } catch(e) { return null; }
   }
@@ -1254,17 +1341,30 @@ STREAMING_OBSERVER_SCRIPT = """
           acceptNode: function(n) {
             var p = n.parentNode;
             while (p && p !== msg) {
-              if (p.nodeType === 1 && p.tagName === 'DETAILS') {
-                // Only skip tool-result / reasoning / code_execution
-                // details — those carry our own result_context example
-                // markers. Other <details> (including the bare
-                // __DETAIL_N__ placeholder shims Open WebUI emits
-                // during streaming before it substitutes real tool
-                // markup) DO carry the model's actual response and
-                // must remain visible to the scanner.
-                var t = p.getAttribute && p.getAttribute('type');
-                if (t === 'tool_calls' || t === 'reasoning' ||
-                    t === 'code_execution' || t === 'code_interpreter') {
+              if (p.nodeType === 1) {
+                if (p.tagName === 'DETAILS') {
+                  // Only skip tool-result / reasoning / code_execution
+                  // details — those carry our own result_context example
+                  // markers. Other <details> (including the bare
+                  // __DETAIL_N__ placeholder shims Open WebUI emits
+                  // during streaming before it substitutes real tool
+                  // markup) DO carry the model's actual response and
+                  // must remain visible to the scanner.
+                  var t = p.getAttribute && p.getAttribute('type');
+                  if (t === 'tool_calls' || t === 'reasoning' ||
+                      t === 'code_execution' || t === 'code_interpreter') {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                }
+                // Newer Open WebUI builds render reasoning / tool-call
+                // collapsibles as <div id="…-detail-group"> instead of
+                // <details>. When the user expands one, the model's
+                // reasoning text mounts into the message DOM — and that
+                // reasoning often contains literal @@@VIZ-START /
+                // @@@VIZ-END substrings the model wrote while planning.
+                // Reject anything inside such a container.
+                var pid = p.id || '';
+                if (pid && pid.indexOf('-detail-group') !== -1) {
                   return NodeFilter.FILTER_REJECT;
                 }
               }
@@ -1275,7 +1375,7 @@ STREAMING_OBSERVER_SCRIPT = """
         }
       );
       var t;
-      while ((t = walker.nextNode())) out += t.nodeValue || '';
+      while ((t = walker.nextNode())) out += getEffectiveText(t);
     } catch(e) { return msg.textContent || ''; }
     return out;
   }
@@ -1308,28 +1408,13 @@ STREAMING_OBSERVER_SCRIPT = """
 
   function hideEl(el) {
     if (!el || el.nodeType !== 1) return;
-    // Idempotent: skip if already hidden so we don't re-trigger
-    // MutationObserver and feed the tick → mutate → tick loop.
-    if (el.getAttribute('data-iv-chat-hidden') === '1') return;
-    el.setAttribute('data-iv-chat-hidden', '1');
+    if (el.getAttribute('data-iv-chat-hidden') !== '1') {
+      el.setAttribute('data-iv-chat-hidden', '1');
+    }
     // setProperty(_, _, 'important') emits `display: none !important`
     // as an inline style — beats any stylesheet without specificity
     // fights, and survives DOM re-renders that keep the element alive.
     try { el.style.setProperty('display', 'none', 'important'); } catch(e) {}
-  }
-
-  function unhideEl(el) {
-    if (!el || el.nodeType !== 1) return;
-    if (el.getAttribute('data-iv-chat-hidden') !== '1') return;
-    el.removeAttribute('data-iv-chat-hidden');
-    try { el.style.removeProperty('display'); } catch(e) {}
-  }
-
-  function unwrapTextWrap(span) {
-    var p = span.parentNode;
-    if (!p) return;
-    while (span.firstChild) p.insertBefore(span.firstChild, span);
-    p.removeChild(span);
   }
 
   function wrapAndHideText(textNode) {
@@ -1365,7 +1450,14 @@ STREAMING_OBSERVER_SCRIPT = """
     return null;
   }
 
-  function hideMarkerRange() {
+  // allowWrap=false during streaming, true on finalize. Wrapping a
+  // text node moves it under a new <span>, which invalidates Svelte's
+  // tracked reference to that node and stalls subsequent chunk
+  // delivery (post-VIZ prose simply never appears in the DOM until
+  // reload). Defer the wrap path until after the response is complete
+  // and Svelte stops mutating message text nodes — the END marker
+  // gets hidden then.
+  function hideMarkerRange(allowWrap) {
     var msg = findMyMessage();
     if (!msg) return;
     var myFrame = window.frameElement;
@@ -1379,10 +1471,12 @@ STREAMING_OBSERVER_SCRIPT = """
     try { embedsRoot = myFrame && myFrame.closest('[id$="-embeds-container"]'); }
     catch(e) {}
 
-    // Walk every text node in document order — but skip anything inside
-    // a <details> subtree (Open WebUI renders tool-call results there,
-    // and OUR result_context carries an example @@@VIZ-START/END pair
-    // that would flip the state machine and hide unrelated chat prose).
+    // Walk every text node in document order — skip text inside
+    // <details type="…"> (older Open WebUI) AND any
+    // [id*="-detail-group"] subtree (newer Open WebUI's reasoning /
+    // tool-call collapsibles). Both can carry our result_context
+    // example @@@VIZ-START/END pair or expanded reasoning text that
+    // would flip the state machine.
     var walker;
     try {
       walker = parent.document.createTreeWalker(
@@ -1390,17 +1484,16 @@ STREAMING_OBSERVER_SCRIPT = """
           acceptNode: function(n) {
             var p = n.parentNode;
             while (p && p !== msg) {
-              if (p.nodeType === 1 && p.tagName === 'DETAILS') {
-                // Only skip tool-result / reasoning / code_execution
-                // details — those carry our own result_context example
-                // markers. Other <details> (including the bare
-                // __DETAIL_N__ placeholder shims Open WebUI emits
-                // during streaming before it substitutes real tool
-                // markup) DO carry the model's actual response and
-                // must remain visible to the scanner.
-                var t = p.getAttribute && p.getAttribute('type');
-                if (t === 'tool_calls' || t === 'reasoning' ||
-                    t === 'code_execution' || t === 'code_interpreter') {
+              if (p.nodeType === 1) {
+                if (p.tagName === 'DETAILS') {
+                  var t = p.getAttribute && p.getAttribute('type');
+                  if (t === 'tool_calls' || t === 'reasoning' ||
+                      t === 'code_execution' || t === 'code_interpreter') {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                }
+                var pid = p.id || '';
+                if (pid && pid.indexOf('-detail-group') !== -1) {
                   return NodeFilter.FILTER_REJECT;
                 }
               }
@@ -1412,24 +1505,45 @@ STREAMING_OBSERVER_SCRIPT = """
       );
     } catch(e) { return; }
 
-    // Pass 1: categorize every text node as hide (inside marker range)
-    // or not. We need both kinds — pass 2 uses the non-hide nodes to
-    // detect blocks that mix hide and non-hide content (e.g. post-viz
-    // prose sharing a <p> with @@@VIZ-END).
     var inside = false;
-    var items = [];
     var tn;
+    var toHideEls = [];
+    var toBlankText = [];
+
     while ((tn = walker.nextNode())) {
       // Skip text nodes that live inside our embed container / iframe —
       // those are our own rendered UI, never chat content to hide.
       if (embedsRoot && embedsRoot.contains(tn)) continue;
       if (myEmbedContainer && myEmbedContainer.contains(tn)) continue;
 
-      var tv = tn.nodeValue || '';
+      // Use getEffectiveText so blanked nodes still report their
+      // original marker substring (preserved in the WeakMap).
+      var tv = getEffectiveText(tn);
       var hadStartLocal = tv.indexOf(START_MARK) !== -1;
       var hadEndLocal = tv.indexOf(END_MARK) !== -1;
 
-      items.push({ tn: tn, hide: inside || hadStartLocal || hadEndLocal });
+      var hideThis = inside || hadStartLocal || hadEndLocal;
+
+      if (hideThis) {
+        var block = nearestBlockAncestor(tn.parentNode, msg);
+        if (block && block !== msg && !block.contains(myFrame)) {
+          // Block ancestor is "clean" — we can hide it wholesale
+          // without touching any text node Svelte tracks. Always
+          // safe, both during streaming and after finalize.
+          toHideEls.push(block);
+        } else {
+          // Block contains our iframe (or no block ancestor) → can't
+          // hide the block. Wrap (parent change) breaks Svelte's
+          // diff and stalls post-VIZ chunks. Instead blank the node
+          // in place: setting nodeValue = '' keeps the node identity
+          // so Svelte's references stay valid; the original text is
+          // preserved in _ivOriginalText for the state machine to
+          // keep finding the marker. allowWrap is kept for finalize
+          // (where we'd allow the actual <span> wrap as a tighter
+          // hide), but blanking is the safer general fallback.
+          toBlankText.push(tn);
+        }
+      }
 
       // State flip AFTER this node is processed (so the node carrying
       // END_MARK is itself hidden).
@@ -1444,109 +1558,19 @@ STREAMING_OBSERVER_SCRIPT = """
       }
     }
 
-    // Pass 2: mark every element ancestor of a non-hide text node.
-    // A block is only safe to hide wholesale if nothing visible lives
-    // inside it.
-    var hasNonHide = new WeakSet();
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].hide) continue;
-      var cur = items[i].tn.parentNode;
-      while (cur && cur !== msg) {
-        if (cur.nodeType === 1) hasNonHide.add(cur);
-        cur = cur.parentNode;
-      }
+    // Apply hides (deduped via the attribute check inside hideEl).
+    for (var i = 0; i < toHideEls.length; i++) hideEl(toHideEls[i]);
+    if (allowWrap) {
+      // Finalize-phase tighter hide: wrap text instead of just
+      // blanking. Wrapping is what produces the cleanest visual
+      // collapse (no whitespace, no node placeholder taking flow).
+      // Safe at finalize because Svelte stops streaming chunks by
+      // the time we get here.
+      for (var j = 0; j < toBlankText.length; j++) wrapAndHideText(toBlankText[j]);
+    } else {
+      // Streaming-safe blank: in-place nodeValue clearing.
+      for (var b = 0; b < toBlankText.length; b++) blankPreserving(toBlankText[b]);
     }
-
-    // Pass 3: build the desired hide / wrap sets. Hide the nearest clean
-    // block ancestor; otherwise wrap the specific text node. Wrapping
-    // leaves an empty span where the text was but preserves sibling
-    // prose that shares the same block.
-    var desiredHideEls = new Set();
-    var desiredWrapTexts = new Set();
-    for (var k = 0; k < items.length; k++) {
-      if (!items[k].hide) continue;
-      var tn2 = items[k].tn;
-      var block = nearestBlockAncestor(tn2.parentNode, msg);
-      if (block && block !== msg &&
-          !block.contains(myFrame) &&
-          !hasNonHide.has(block)) {
-        desiredHideEls.add(block);
-      } else {
-        desiredWrapTexts.add(tn2);
-      }
-    }
-
-    // Pass 4: extend the hide set to neighboring empty decorative
-    // siblings. The markdown renderer emits empty <div class="my-2">
-    // spacers between paragraphs — each contributes ~1rem of margin,
-    // which adds up to a visible gap once both surrounding blocks are
-    // hidden but the spacers aren't.
-    function isEmptyDecorative(el) {
-      if (!el || el.nodeType !== 1) return false;
-      if (el === myFrame) return false;
-      if (el.contains && el.contains(myFrame)) return false;
-      if (embedsRoot && (el === embedsRoot || el.contains(embedsRoot))) return false;
-      // Already hidden by us → don't re-add (cheap dedupe).
-      if (desiredHideEls.has(el)) return false;
-      // Wrap spans live inside flow but take no space themselves.
-      if (el.getAttribute && el.getAttribute('data-iv-chat-wrap') === '1') return false;
-      // Has visible text → not decorative.
-      var t = el.textContent || '';
-      if (t.replace(/\s+/g, '').length > 0) return false;
-      // Has media / interactive / iframe descendants → keep.
-      try {
-        if (el.querySelector('iframe, img, svg, canvas, video, audio, button, input, [id*="-embeds-"]')) {
-          return false;
-        }
-      } catch(e) {}
-      return true;
-    }
-    var seedHides = [];
-    desiredHideEls.forEach(function(el) { seedHides.push(el); });
-    for (var s = 0; s < seedHides.length; s++) {
-      var seed = seedHides[s];
-      var n = seed.nextElementSibling;
-      while (n && isEmptyDecorative(n)) {
-        desiredHideEls.add(n);
-        n = n.nextElementSibling;
-      }
-      var pv = seed.previousElementSibling;
-      while (pv && isEmptyDecorative(pv)) {
-        desiredHideEls.add(pv);
-        pv = pv.previousElementSibling;
-      }
-    }
-
-    // Cleanup: drop stale wraps (Svelte's streaming patcher sometimes
-    // adopts follow-up nodes as children of our wrap span — unwrap
-    // those so the post-viz prose doesn't ride along hidden) and stale
-    // block hides (markers moved, block is now plain prose). Each
-    // mutation here only happens when current state diverges from
-    // desired — keeps the function idempotent in steady state, which
-    // prevents tick → mutate → tick infinite loops via MutationObserver.
-    try {
-      var wraps = msg.querySelectorAll('[data-iv-chat-wrap="1"]');
-      for (var w = 0; w < wraps.length; w++) {
-        var ws = wraps[w];
-        var only = ws.firstChild;
-        var clean = only && only.nodeType === 3 && ws.childNodes.length === 1;
-        if (!clean || !desiredWrapTexts.has(only)) {
-          unwrapTextWrap(ws);
-        }
-      }
-      var hiddens = msg.querySelectorAll('[data-iv-chat-hidden="1"]');
-      for (var h = 0; h < hiddens.length; h++) {
-        var he = hiddens[h];
-        // Wrap spans inherit their hidden state from the wrap — handled
-        // above by unwrapTextWrap which removes the element entirely.
-        if (he.getAttribute('data-iv-chat-wrap') === '1') continue;
-        if (!desiredHideEls.has(he)) unhideEl(he);
-      }
-    } catch(e) {}
-
-    // Apply (idempotent helpers — skip if already in desired state).
-    desiredHideEls.forEach(function(el) { hideEl(el); });
-    desiredWrapTexts.forEach(function(tn) { wrapAndHideText(tn); });
   }
 
   // Safe-cut partial-HTML parser
@@ -1738,6 +1762,9 @@ STREAMING_OBSERVER_SCRIPT = """
         return new Promise(function(resolve) {
           var el = document.createElement('script');
           attrs.forEach(function(pair) { el.setAttribute(pair[0], pair[1]); });
+          // Tag for HTML export: _ivDownload moves these to end of <body>
+          // so they execute after the model's canvases / DOM nodes exist.
+          el.setAttribute('data-iv-imported', '1');
           el.onload = el.onerror = function() { resolve(); };
           document.head.appendChild(el);
         });
@@ -1747,6 +1774,7 @@ STREAMING_OBSERVER_SCRIPT = """
         try {
           var el = document.createElement('script');
           attrs.forEach(function(pair) { el.setAttribute(pair[0], pair[1]); });
+          el.setAttribute('data-iv-imported', '1');
           el.textContent = code;
           document.head.appendChild(el);
         } catch(e) { try { console.error(e); } catch(_){} }
@@ -1835,11 +1863,54 @@ STREAMING_OBSERVER_SCRIPT = """
   // Strip document-level tags that models sometimes wrap VIZ content in.
   // These are invalid inside a div's innerHTML and mangle the DOM tree.
   var _ivStripDocTags = new RegExp('<' + '!DOCTYPE[^>]*>|<' + '/?(?:html|head|body)[^>]*>', 'gi');
+
+  // Open WebUI's chat-side sanitizer strips <style> tags but keeps the
+  // inner CSS as bare text. The observer reads chat textContent, so by
+  // the time the source reaches us the <style> wrapper is gone and the
+  // CSS is just text. innerHTML then treats it as text content (no
+  // <style> element → no CSS applied → CSS rules render as visible
+  // source). Re-inflate sequences of bare CSS rules into a <style>
+  // block so the iframe can apply them.
+  //
+  // Strict pattern: selector ({-free chars} ){ property: value; … }.
+  // Requires at least two consecutive rules with <50 chars between them
+  // — guards against accidental matches on JSON / object literals /
+  // strings containing braces.
+  var _ivCssRule = /[A-Za-z@.#:*\[\]>+\-,\s_~()='"&]+\{\s*(?:[A-Za-z-]+\s*:\s*[^;{}<>]+;\s*)+\}/g;
+  function reinflateBareCSS(text) {
+    if (/<style[\\s>]/i.test(text)) return text;
+    _ivCssRule.lastIndex = 0;
+    var matches = [], m;
+    while ((m = _ivCssRule.exec(text)) !== null) {
+      matches.push({ start: m.index, end: _ivCssRule.lastIndex });
+      if (m.index === _ivCssRule.lastIndex) _ivCssRule.lastIndex++;
+    }
+    if (matches.length < 2) return text;
+    // Group consecutive rules (separated by < 50 chars of whitespace)
+    var groups = [], cur = null;
+    for (var i = 0; i < matches.length; i++) {
+      if (cur && matches[i].start - cur.end < 50) cur.end = matches[i].end;
+      else { cur = { start: matches[i].start, end: matches[i].end, count: 1 }; groups.push(cur); }
+      if (cur.start !== matches[i].start) cur.count = (cur.count || 1) + 1;
+    }
+    // Process from last to first to preserve indices
+    for (var g = groups.length - 1; g >= 0; g--) {
+      var grp = groups[g];
+      var slice = text.substring(grp.start, grp.end);
+      // Require multiple rules in the group
+      var brace = slice.match(/\{/g);
+      if (!brace || brace.length < 2) continue;
+      text = text.substring(0, grp.start) + '<style>' + slice + '</style>' + text.substring(grp.end);
+    }
+    return text;
+  }
+
   function renderSafeInto(text, withScripts) {
     var html = withScripts
       ? text
       : text.replace(_ivStripPaired, '').replace(_ivStripOpen, '');
     html = html.replace(_ivStripDocTags, '');
+    html = reinflateBareCSS(html);
     var temp = document.createElement('div');
     try {
       temp.innerHTML = html;
@@ -1882,6 +1953,7 @@ STREAMING_OBSERVER_SCRIPT = """
   }
 
   // ---- Finalize: run scripts, final height nudge ----------------------
+
   function finalize(fullText) {
     if (finalized) return;
     finalized = true;
@@ -1946,7 +2018,10 @@ STREAMING_OBSERVER_SCRIPT = """
       wasStreaming = true;
     }
 
-    if (textChanged || forceHide) hideMarkerRange();
+    // allowWrap=false: streaming-safe (no text-node wrapping — would
+    // break Svelte's diff and stall post-VIZ chunks). finalize() runs
+    // the wrap-allowed pass once the response is complete.
+    if (textChanged || forceHide) hideMarkerRange(false);
 
     // Source-dependent work only runs on actual changes.
     if (!textChanged) return;
