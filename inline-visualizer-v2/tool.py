@@ -2762,9 +2762,12 @@ class Tools:
         chart patterns, and common failure points.
 
         **IMPORTANT:** When to use the tool:
-        Use this tool only when the user has explicitly said to visualize something.
-        Do not use it when it would fit the response to visualize something but only when
-        there is CLEAR INTENT by the user to want something visualized in the chat.
+        Use this tool only when the user has EXPLICITLY said to visualize something.
+        ONLY use it when there is a VERY CLEAR and UNAMBIGUOUS REQUEST by the user
+        to want something visualized in the chat.
+        The user MUST state that they want something visualized by you.
+        ONLY IF THE USER EXPLICITLY SAYS they want something visualized, use the tool.
+        Otherwise, DO NOT use the tool.
 
         The tool mounts an empty visualization wrapper in the chat.
         Then, in your text response that follows, wrap the HTML/SVG in the TEXT DELIMITERS
