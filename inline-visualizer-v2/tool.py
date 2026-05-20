@@ -2763,7 +2763,7 @@ class Tools:
         **If the user did not explicitly ask for a visual artifact, do not call visualize().**
         Never use visualize() for ordinary assistant output.
         The chat you are responding in has a full Markdown, LaTeX, KaTeX and Mermaid rendering engine.
-        Call visualize() ONLY when the latest user message clearly and UNAMBIGUOUSLY, DIRECTLY, EXPLICITLY asks for a visual artifact (e.g. diagrams, charts, graphs, cashboards, illustrations, interactive explainers, etc.).
+        Call visualize() ONLY when the user clearly and UNAMBIGUOUSLY, DIRECTLY, EXPLICITLY asked for a visual artifact (e.g. diagrams, charts, graphs, dashboards, illustrations, interactive explainers, etc.).
 
         IMPORTANT:
         BEFORE CALLING THIS TOOL, YOU MUST: Call view_skill("visualize") FIRST.
