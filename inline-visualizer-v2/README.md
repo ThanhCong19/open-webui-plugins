@@ -157,7 +157,7 @@ Steps:
 
 ## 🎯 Usage
 
-Ask for a visualization. The model calls `view_skill("visualize")` to load the design system, calls `render_visualization(title=…)` to mount the wrapper, then streams the HTML/SVG between `@@@VIZ-START` / `@@@VIZ-END` markers.
+Ask for a visualization. The model calls `view_skill("visualize")` to load the design system, calls `visualize(title=…)` to mount the wrapper, then streams the HTML/SVG between `@@@VIZ-START` / `@@@VIZ-END` markers.
 
 ### Example prompts
 
