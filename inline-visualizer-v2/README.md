@@ -13,14 +13,14 @@ Interactive. Stateful. Themed. Localized into 46 languages. Renders as the strea
 
 ## ⚡ v2 vs v1 — what's new
 
-If you came from the original inline-visualizer plugin, **everything visible to the model stays the same** (still called `render_visualization`, still loads `view_skill("visualize")` first). Under the hood, it's been rewritten from scratch. Every row below is an actual behavior delta, not marketing copy.
+If you came from the original inline-visualizer plugin, **everything visible to the model stays basically the same**. Under the hood, it's been rewritten from scratch. Every row below is an actual behavior delta, not marketing copy.
 
 Legend: 🚫 feature not in that version · ⚡ present, v2 expands it · ✅ present and working
 
 | | **v1 — classic** | **v2 — streaming** |
 |---|---|---|
 | **Rendering timing** | ✅ Static. Model finishes writing → tool assembles a complete HTML payload → `HTMLResponse` comes back → iframe mounts fully formed. User waits for the whole response before seeing anything. | ✅ **Live.** Tool returns an empty wrapper; the model streams the HTML/SVG inline between markers. Iframe paints token-by-token as the model types — first elements appear within ~50 ms of the opening marker arriving. |
-| **Protocol** | ✅ Model calls `render_visualization(title=…, html_code=…)` with the full HTML as a tool argument. Tool returns `HTMLResponse`, Open WebUI mounts it as an iframe via `message.embeds[]`. One-shot, server-side. | ✅ Model calls `render_visualization(title=…)` with no body, then emits the HTML/SVG in the chat stream between plain-text `@@@VIZ-START … @@@VIZ-END` markers. A parasitic same-origin iframe observer reads the parent chat's live DOM and paints as tokens arrive. |
+| **Protocol** | ✅ Model calls `render_visualization(title=…, html_code=…)` with the full HTML as a tool argument. Tool returns `HTMLResponse`, Open WebUI mounts it as an iframe via `message.embeds[]`. One-shot, server-side. | ✅ Model calls `visualize(title=…)` with no body, then emits the HTML/SVG in the chat stream between plain-text `@@@VIZ-START … @@@VIZ-END` markers. A parasitic same-origin iframe observer reads the parent chat's live DOM and paints as tokens arrive. |
 | **Refresh / reload behavior** | ✅ Saved HTML lives in `message.embeds[]`; reopens render instantly. | ✅ Markers live in the saved message body; observer reconstructs iframe state and fires `finalize()` immediately on mount. No re-streaming needed. |
 | **Bridges** | ⚡ `sendPrompt`, `openLink` | ✅ `sendPrompt`, `openLink`, **`copyText`** (auto-toast), **`toast(msg, kind)`** (success/info/warn/error, auto-dismiss), **`saveState(k,v)`** / **`loadState(k,fallback)`** (per-message `localStorage` scope, survives reloads) |
 | **Pre-styled bare HTML** | 🚫 N/A — model styles every primitive from scratch. | ✅ Drop a vanilla `<button>`, `<input>` (every common type), `<textarea>`, `<select>`, `<label>`, `<fieldset>`, `<table>`, `<details>` / `<summary>`, `<blockquote>`, `<kbd>`, `<hr>`, `<mark>`, `<dl>` (in `data-layout="grid"` and `inline` modes too) and they come out theme-matched. Adding `class` or `style` opts out — model can still go fully custom. **Smaller payloads, faster generation, consistent look across visualizations.** |
