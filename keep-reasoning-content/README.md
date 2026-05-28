@@ -6,10 +6,10 @@ Stops Open WebUI dropping `reasoning_content` on its way to your reasoning model
 > **Supported Open WebUI versions: `0.9.5` – `0.9.5`.** This filter patches internal middleware functions whose names and line positions are specific to this range, so newer (or older) Open WebUI versions may/will probably need updates to the filter itself. Whenever you upgrade Open WebUI, check the plugin page for a new version of this filter before relying on it.
 
 > [!WARNING]
-> **Don't enable this for models that return a reasoning _summary_ instead of their raw chain of thought** (for example OpenAI's o-series / GPT-5 reasoning models, which only expose a short summary over the API). A summary is not the model's real reasoning and must never be replayed to the provider as `reasoning_content` — sending it back can be rejected outright or poison the model's context. Because the patch is installed **process-wide** (it affects every non-ollama model on the instance, not only the ones you attach it to), the only way to protect such a model is to add its ID to `excluded_model_ids` and run the filter as **Global**, or simply not enable this filter on an instance that serves summary-only reasoning models.
+> **Enable this filter Globally, and list every reasoning-_summary_ model in the `excluded_model_ids` valve.** Some reasoning models (OpenAI's o-series / GPT-5, and others) never return their raw chain of thought over the API, only a short after-the-fact _summary_. That summary is not real reasoning and must never be replayed to the provider as `reasoning_content`, because sending it back can be rejected outright or poison the model's context. This filter patches Open WebUI **process-wide** and cannot tell those models apart on its own, so you have to name them in the exclusion valve. A per-model install does **not** protect them. See [Recommended setup](#-recommended-setup) for exactly why.
 
 > [!TIP]
-> **🚀 [Jump to Installation](#-installation)** — under 1 minute, no container restart needed for a fresh install.
+> **🚀 [Jump to Recommended setup](#-recommended-setup)** — enable it **Global** and exclude your reasoning-summary models. Install takes under a minute, with no container restart for a fresh install.
 
 ## ⚠️ The problem this fixes
 
@@ -60,16 +60,42 @@ End-to-end against MiMo-v2.5 with both in-loop tool calling (three native tool c
 1. Copy the contents of `filter.py`, or click **Get** on the Community page.
 2. In Open WebUI, go to **Admin Panel → Functions → + New** and paste the code, then **Save**.
 3. Toggle the function on.
-4. Either set it as **Global** (applies to every model on the instance) or attach it per-model under **Model settings → Filters**. Both work; the patch is module-level once installed.
+4. Set it to **Global** so it runs on every request. ([Recommended setup](#-recommended-setup) explains why Global, and why a per-model install is the wrong choice here.)
+5. Open the function's valves and add any reasoning-_summary_ models to `excluded_model_ids` (see [Configuration](#-configuration)).
 
 No container restart needed for a fresh install.
+
+## 🛠️ Recommended setup
+
+**Enable the filter Globally, and use `excluded_model_ids` to name any model that returns a reasoning _summary_.** Here is why that exact combination, and not a per-model install, is the correct one.
+
+### The patch is process-wide, not per-model
+
+The filter does not edit one request's payload. On load it **monkey-patches** `middleware.get_reasoning_format`: it replaces a function inside the middleware module itself. From that moment, every call Open WebUI makes to `get_reasoning_format`, for every model in that worker process, hits the patched version. The patch has no notion of which models you "attached" the filter to, because attachment is a per-request concept and the patched function lives one layer below it, in the module's globals.
+
+### Why a per-model install does not work
+
+Attaching the filter to only your reasoning models feels like it should limit the effect to them. It does not. The moment any attached model triggers the load, the patch goes live for the whole process and forces `reasoning_content` on every non-ollama model, including ones you never attached it to. So "I just won't attach it to my summary model" is not protection: that summary model still gets patched as soon as any other model loads the filter. Per-model attachment changes only **which requests run `inlet`**, never **which models the patch touches**.
+
+### Why you must list the exceptions, and why Global makes them reliable
+
+The only way to spare a model from the patch is the exclusion check inside it:
+
+```python
+if model.get('id') in _EXCLUDED_IDS:
+    return result   # original format -> the patch is a no-op for this model
+```
+
+`_EXCLUDED_IDS` is populated from the `excluded_model_ids` valve by the filter's `inlet` hook, and `inlet` only runs on requests where the filter is active. Run it **Global** and `inlet` fires on every request, so the exclusion set is always populated and current, and your summary models are reliably skipped. Run it per-model and `inlet` fires only for the attached models, so the exclusion set can sit empty or stale exactly when a non-attached summary model is being served, and the patch hits it unguarded.
+
+**Bottom line:** Global, plus every reasoning-summary model listed in `excluded_model_ids`. That is the only configuration where the models that should get their reasoning back do, and the models that must not are reliably left alone.
 
 ## ⚙️ Configuration
 
 Two valves:
 
 - **`priority`** (int, default `0`) — filter sort order. Lower numbers run first. Leave at `0` unless you stack multiple filters and need a specific order.
-- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs to opt **out** of the patch. Use it for models whose chat template explicitly forbids reasoning in history (the Gemma 4 family is the main example), and for any model that returns a reasoning _summary_ rather than raw reasoning (see the warning near the top of this README). Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gemma-4-9b,other-model-id`.
+- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs the patch must **skip**. **Required** for any model that emits reasoning it should not get back: models that return a reasoning _summary_ (OpenAI o-series / GPT-5) and models whose chat template forbids reasoning in history (the Gemma 4 family). Because the patch is process-wide (see [Recommended setup](#-recommended-setup)), listing them here is the only thing that spares them, and the filter must be **Global** for the list to apply on every request. Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gpt-5,o3-mini`.
 
 Valve changes take effect on the next request after you save.
 
@@ -89,13 +115,13 @@ No, it's a no-op for them in practice. Non-reasoning models don't emit `delta.re
 <details>
 <summary><b>What about models that return a reasoning <em>summary</em> (OpenAI o-series, GPT-5, …)?</b></summary>
 
-**Exclude them, or don't run this filter on that instance.** Some reasoning models never expose their raw chain of thought over the API — they return only a short, post-hoc *summary* of it. That summary is not the model's actual reasoning, and the provider's API will reject it or mis-handle it if you send it back as `reasoning_content`. Because this filter installs its patch **process-wide** (see the Global-vs-per-model entry below), it will try to replay reasoning for those models too unless you opt them out. Add their model IDs to `excluded_model_ids` and run the filter as **Global** so the exclusion is always applied. This is the warning at the top of the README — it matters.
+**List them in `excluded_model_ids` and run the filter Global.** Some reasoning models never expose their raw chain of thought over the API — they return only a short, post-hoc *summary* of it. That summary is not the model's actual reasoning, and the provider's API will reject it or mis-handle it if you send it back as `reasoning_content`. Because this filter installs its patch **process-wide** (see [Recommended setup](#-recommended-setup)), it forces reasoning on those models too unless you opt them out, and *not attaching* the filter to them does nothing to help. Naming them in the exclusion valve is the only reliable protection.
 </details>
 
 <details>
-<summary><b>Does it matter whether I enable the filter Global or per-model?</b></summary>
+<summary><b>Should I enable the filter Global or per-model?</b></summary>
 
-Yes, and it's subtler than a normal filter. `__init__` installs the patch into the middleware module's globals, so **once any request runs this filter, the patch is live for the whole worker process** — it changes `get_reasoning_format` for every non-ollama model, not just the ones you attached it to. The per-request `inlet` hook only refreshes the `excluded_model_ids` set. Practical upshot: enable it **Global** so `inlet` runs on every request and your exclusion list is always in force. Enabling it on a single model still patches the entire process, but your exclusions will only reflect whatever the last filter-active request set them to.
+**Global — it has to be.** The filter monkey-patches a module-level function, so the patch is process-wide the moment the filter loads; it is never scoped to the models you attach it to. A per-model install does not limit which models get `reasoning_content` forced, and it leaves the `excluded_model_ids` set dependent on whether an attached model happened to run — which is exactly when you don't want it empty. Enable it Global so `inlet` runs on every request and your exclusions are always live. Full reasoning in [Recommended setup](#-recommended-setup).
 </details>
 
 <details>
