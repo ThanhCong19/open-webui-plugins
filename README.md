@@ -10,6 +10,7 @@ Each plugin lives in its own folder with a README explaining what it does, what 
 
 | Plugin | Description | Components |
 |--------|-------------|------------|
+| [Keep reasoning_content](keep-reasoning-content/) | ⭐ **NEW** ⭐ \| 🧠 **FILTER** 🧠 Stops Open WebUI dropping `reasoning_content` on its way to your reasoning model, so DeepSeek / Kimi / MiMo / vLLM actually have their prior chain of thought during tool-call loops and across follow-up turns. **Supported on Open WebUI 0.9.5 only.** | Filter |
 | [Inline Visualizer v2](inline-visualizer-v2/) | ⭐ **NEW** ⭐ \| 🔹 **LIVE RENDERED** 🔹 interactive HTML/SVG visualizations inline in chat. Full design system with theme-aware colors, SVG utilities, **pre-styled bare HTML** (forms, tables, `<details>`, `<dl>`, …), a **9-color `data-accent` palette**, and six interactive bridges for conversational drill-down - talk to your visualizations, dashboards, charts, maps etc. - First-class support for Chart.js, D3, Vega-Lite, ECharts, Plotly, vis-network, and Tone.js. | Tool + Skill |
 | [Email Composer](email-composer/) | AI-powered email drafting with an interactive Rich UI card. Rich text editing, To/CC/BCC chips, priority, download .eml, one-click send via mailto. | Tool |
 | [MCP App Bridge](mcp-app-bridge/) | Renders MCP Apps (SEP-1865) as Rich UI embeds. Connects to MCP servers, calls tools with `ui://` resources, injects server-declared CSP, and renders the HTML inline — no middleware changes needed. | Tool |
