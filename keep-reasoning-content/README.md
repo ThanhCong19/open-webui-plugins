@@ -3,7 +3,10 @@
 Stops Open WebUI dropping `reasoning_content` on its way to your reasoning model. Works with any OpenAI-compatible model that emits `delta.reasoning_content` in its streaming response, so DeepSeek / Kimi / MiMo / vLLM actually have their prior chain of thought during tool-call loops and across follow-up turns.
 
 > [!IMPORTANT]
-> **Supported Open WebUI versions: `0.9.5` only.** This filter patches internal middleware functions whose names and line positions are specific to 0.9.5. Newer Open WebUI versions may/will probably need updates to this filter.
+> **Supported Open WebUI versions: `0.9.5` – `0.9.5`.** This filter patches internal middleware functions whose names and line positions are specific to this range, so newer (or older) Open WebUI versions may/will probably need updates to the filter itself. Whenever you upgrade Open WebUI, check the plugin page for a new version of this filter before relying on it.
+
+> [!WARNING]
+> **Don't enable this for models that return a reasoning _summary_ instead of their raw chain of thought** (for example OpenAI's o-series / GPT-5 reasoning models, which only expose a short summary over the API). A summary is not the model's real reasoning and must never be replayed to the provider as `reasoning_content` — sending it back can be rejected outright or poison the model's context. Because the patch is installed **process-wide** (it affects every non-ollama model on the instance, not only the ones you attach it to), the only way to protect such a model is to add its ID to `excluded_model_ids` and run the filter as **Global**, or simply not enable this filter on an instance that serves summary-only reasoning models.
 
 > [!TIP]
 > **🚀 [Jump to Installation](#-installation)** — under 1 minute, no container restart needed for a fresh install.
@@ -66,7 +69,7 @@ No container restart needed for a fresh install.
 Two valves:
 
 - **`priority`** (int, default `0`) — filter sort order. Lower numbers run first. Leave at `0` unless you stack multiple filters and need a specific order.
-- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs to opt **out** of the patch. Use for models whose chat template explicitly forbids reasoning in history (the Gemma 4 family is the main example). Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gemma-4-9b,other-model-id`.
+- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs to opt **out** of the patch. Use it for models whose chat template explicitly forbids reasoning in history (the Gemma 4 family is the main example), and for any model that returns a reasoning _summary_ rather than raw reasoning (see the warning near the top of this README). Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gemma-4-9b,other-model-id`.
 
 Valve changes take effect on the next request after you save.
 
@@ -77,20 +80,65 @@ Valve changes take effect on the next request after you save.
 
 ## ❓ FAQ
 
-**Will this affect my non-reasoning models (GPT-4o, plain Claude, etc.)?**
-No. Those models do not emit `delta.reasoning_content` in their streaming response, so the output accumulator never gets reasoning items, and the patched function has nothing to emit. It is a no-op for them in practice.
+<details>
+<summary><b>Will this affect my non-reasoning models (GPT-4o, plain Claude, etc.)?</b></summary>
 
-**Why is `'llama.cpp'` the magic string?**
-Internal Open WebUI naming. The code branch labelled `'llama.cpp'` is the one that emits `reasoning_content` as a top-level message field, because llama.cpp's OpenAI-compatible server was the upstream that introduced this convention. The label is misleading; this filter has nothing to do with the llama.cpp inference engine specifically. It applies to any OpenAI-compatible reasoning model.
+No, it's a no-op for them in practice. Non-reasoning models don't emit `delta.reasoning_content` in their stream, so the output accumulator never collects any reasoning items. The patched function still returns `'reasoning_content'` for them, but there's nothing to put in that field, so the outgoing request is unchanged. You can leave the filter on without worrying about your regular chat models.
+</details>
 
-**What about Claude / extended thinking?**
-Claude uses its own `thinking_blocks` shape, not OpenAI-style `reasoning_content`, and routes through a different handler entirely. This filter does not touch Claude's path.
+<details>
+<summary><b>What about models that return a reasoning <em>summary</em> (OpenAI o-series, GPT-5, …)?</b></summary>
 
-**Will the model actually USE the replayed reasoning?**
-Mechanically the filter delivers it on every relevant request. Whether the model uses it depends on its training. Some models (notably DeepSeek and MiMo) have honesty-training that may make them disclaim memory of their own prior reasoning even when it is present in context. That is a model-behaviour question, not something a filter can change.
+**Exclude them, or don't run this filter on that instance.** Some reasoning models never expose their raw chain of thought over the API — they return only a short, post-hoc *summary* of it. That summary is not the model's actual reasoning, and the provider's API will reject it or mis-handle it if you send it back as `reasoning_content`. Because this filter installs its patch **process-wide** (see the Global-vs-per-model entry below), it will try to replay reasoning for those models too unless you opt them out. Add their model IDs to `excluded_model_ids` and run the filter as **Global** so the exclusion is always applied. This is the warning at the top of the README — it matters.
+</details>
 
-**Does this work on Open WebUI < 0.9.5?**
-Untested on earlier versions. The line numbers and function signatures above refer to 0.9.5; earlier versions may have differently-named or differently-located internals.
+<details>
+<summary><b>Does it matter whether I enable the filter Global or per-model?</b></summary>
+
+Yes, and it's subtler than a normal filter. `__init__` installs the patch into the middleware module's globals, so **once any request runs this filter, the patch is live for the whole worker process** — it changes `get_reasoning_format` for every non-ollama model, not just the ones you attached it to. The per-request `inlet` hook only refreshes the `excluded_model_ids` set. Practical upshot: enable it **Global** so `inlet` runs on every request and your exclusion list is always in force. Enabling it on a single model still patches the entire process, but your exclusions will only reflect whatever the last filter-active request set them to.
+</details>
+
+<details>
+<summary><b>Will this increase my token usage / context length?</b></summary>
+
+Yes, modestly. Replaying each prior assistant turn's reasoning means those tokens are now included in every follow-up request instead of being dropped. On long conversations with a verbose reasoning model, that adds up. It's the unavoidable trade-off: there's no way to give the model back its prior chain of thought without actually sending the chain of thought.
+</details>
+
+<details>
+<summary><b>Why monkey-patch the function instead of flipping a flag in <code>inlet</code>?</b></summary>
+
+Because the cross-turn history rebuild at `middleware.py:2385` runs **before** any filter `inlet` hook. A per-request mutation of the model dict in `inlet` can't reach that earlier rebuild, and that rebuild is exactly the path that drops reasoning on follow-up turns. Patching the function itself is the only place that catches both the pre-inlet history rebuild and the in-turn tool-call rebuilds at once. v1 used the `inlet` approach and only ever fixed the within-turn case (see the changelog).
+</details>
+
+<details>
+<summary><b>Why is <code>'llama.cpp'</code> the magic string?</b></summary>
+
+Internal Open WebUI naming. The code branch labelled `'llama.cpp'` is the one that emits `reasoning_content` as a top-level message field, because llama.cpp's OpenAI-compatible server was the upstream that introduced this convention. The label is misleading: this filter has nothing to do with the llama.cpp inference engine specifically, and there are **no routing side effects** — request dispatch reads the provider from the connection's `api_config`, not from this function. It applies to any OpenAI-compatible reasoning model.
+</details>
+
+<details>
+<summary><b>What about Claude / extended thinking?</b></summary>
+
+Untouched. Claude uses its own `thinking_blocks` shape, not OpenAI-style `reasoning_content`, and routes through a different handler entirely. This filter never sees Claude's path, so it neither helps nor harms it.
+</details>
+
+<details>
+<summary><b>Will the model actually <em>use</em> the replayed reasoning?</b></summary>
+
+Mechanically the filter delivers it on every relevant request — that part is verified on the wire (see [Validated](#-validated)). Whether the model *acts* on it depends on its training. Some models (notably DeepSeek and MiMo) have honesty-training that can make them disclaim memory of their own prior reasoning even when it's sitting right there in their context. That's a model-behaviour question, not something a filter can change.
+</details>
+
+<details>
+<summary><b>I disabled the filter but the behaviour is still there.</b></summary>
+
+Expected. The patch lives in the middleware module's globals for the lifetime of the Python process, so disabling the filter stops `inlet` from running but leaves the wrapped function in place. **Restart the container** to fully remove it — see [Upgrading and uninstalling](#-upgrading-and-uninstalling).
+</details>
+
+<details>
+<summary><b>Does this work on Open WebUI outside the supported range?</b></summary>
+
+Untested, and likely to need updates. The line numbers and function signatures this filter depends on are specific to the supported version range at the top of this README; earlier or later releases may rename or relocate `get_reasoning_format` and the rebuild call sites. Watch the plugin page for a version bump whenever you upgrade Open WebUI.
+</details>
 
 ## 📝 Changelog
 
