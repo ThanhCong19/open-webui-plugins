@@ -6,10 +6,10 @@ Stops Open WebUI dropping `reasoning_content` on its way to your reasoning model
 > **Supported Open WebUI versions: `0.9.5` – `0.9.5`.** This filter patches internal middleware functions whose names and line positions are specific to this range, so newer (or older) Open WebUI versions may/will probably need updates to the filter itself. Whenever you upgrade Open WebUI, check the plugin page for a new version of this filter before relying on it.
 
 > [!WARNING]
-> **Enable this filter Globally, and list every reasoning-_summary_ model in the `excluded_model_ids` valve.** Some reasoning models (OpenAI's o-series / GPT-5, and others) never return their raw chain of thought over the API, only a short after-the-fact _summary_. That summary is not real reasoning and must never be replayed to the provider as `reasoning_content`, because sending it back can be rejected outright or poison the model's context. This filter patches Open WebUI **process-wide** and cannot tell those models apart on its own, so you have to name them in the exclusion valve. A per-model install does **not** protect them. See [Recommended setup](#-recommended-setup) for exactly why.
+> **Enable this filter Globally, and list every reasoning-_summary_ model in the `excluded_model_ids` valve.** Some reasoning models (OpenAI's o-series / GPT-5, and others) never return their raw chain of thought over the API, only a short after-the-fact _summary_. That summary is not real reasoning and must never be replayed to the provider as `reasoning_content`, because sending it back can be rejected outright or poison the model's context. This filter patches Open WebUI **process-wide** and cannot tell those models apart on its own, so you have to name them in the exclusion valve. A per-model install does **not** protect them. See [Recommended setup](#recommended-setup) for exactly why.
 
 > [!TIP]
-> **🚀 [Jump to Recommended setup](#-recommended-setup)** — enable it **Global** and exclude your reasoning-summary models. Install takes under a minute, with no container restart for a fresh install.
+> **🚀 [Jump to Recommended setup](#recommended-setup)** — enable it **Global** and exclude your reasoning-summary models. Install takes under a minute, with no container restart for a fresh install.
 
 ## ⚠️ The problem this fixes
 
@@ -60,12 +60,12 @@ End-to-end against MiMo-v2.5 with both in-loop tool calling (three native tool c
 1. Copy the contents of `filter.py`, or click **Get** on the Community page.
 2. In Open WebUI, go to **Admin Panel → Functions → + New** and paste the code, then **Save**.
 3. Toggle the function on.
-4. Set it to **Global** so it runs on every request. ([Recommended setup](#-recommended-setup) explains why Global, and why a per-model install is the wrong choice here.)
-5. Open the function's valves and add any reasoning-_summary_ models to `excluded_model_ids` (see [Configuration](#-configuration)).
+4. Set it to **Global** so it runs on every request. ([Recommended setup](#recommended-setup) explains why Global, and why a per-model install is the wrong choice here.)
+5. Open the function's valves and add any reasoning-_summary_ models to `excluded_model_ids` (see [Configuration](#configuration)).
 
 No container restart needed for a fresh install.
 
-## 🛠️ Recommended setup
+## Recommended setup
 
 **Enable the filter Globally, and use `excluded_model_ids` to name any model that returns a reasoning _summary_.** Here is why that exact combination, and not a per-model install, is the correct one.
 
@@ -90,12 +90,12 @@ if model.get('id') in _EXCLUDED_IDS:
 
 **Bottom line:** Global, plus every reasoning-summary model listed in `excluded_model_ids`. That is the only configuration where the models that should get their reasoning back do, and the models that must not are reliably left alone.
 
-## ⚙️ Configuration
+## Configuration
 
 Two valves:
 
 - **`priority`** (int, default `0`) — filter sort order. Lower numbers run first. Leave at `0` unless you stack multiple filters and need a specific order.
-- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs the patch must **skip**. **Required** for any model that emits reasoning it should not get back: models that return a reasoning _summary_ (OpenAI o-series / GPT-5) and models whose chat template forbids reasoning in history (the Gemma 4 family). Because the patch is process-wide (see [Recommended setup](#-recommended-setup)), listing them here is the only thing that spares them, and the filter must be **Global** for the list to apply on every request. Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gpt-5,o3-mini`.
+- **`excluded_model_ids`** (string, default empty) — comma-separated list of model IDs the patch must **skip**. **Required** for any model that emits reasoning it should not get back: models that return a reasoning _summary_ (OpenAI o-series / GPT-5) and models whose chat template forbids reasoning in history (the Gemma 4 family). Because the patch is process-wide (see [Recommended setup](#recommended-setup)), listing them here is the only thing that spares them, and the filter must be **Global** for the list to apply on every request. Excluded models keep Open WebUI's original `get_reasoning_format` behaviour. Format: `gemma-4-it,gpt-5,o3-mini`.
 
 Valve changes take effect on the next request after you save.
 
@@ -115,13 +115,13 @@ No, it's a no-op for them in practice. Non-reasoning models don't emit `delta.re
 <details>
 <summary><b>What about models that return a reasoning <em>summary</em> (OpenAI o-series, GPT-5, …)?</b></summary>
 
-**List them in `excluded_model_ids` and run the filter Global.** Some reasoning models never expose their raw chain of thought over the API — they return only a short, post-hoc *summary* of it. That summary is not the model's actual reasoning, and the provider's API will reject it or mis-handle it if you send it back as `reasoning_content`. Because this filter installs its patch **process-wide** (see [Recommended setup](#-recommended-setup)), it forces reasoning on those models too unless you opt them out, and *not attaching* the filter to them does nothing to help. Naming them in the exclusion valve is the only reliable protection.
+**List them in `excluded_model_ids` and run the filter Global.** Some reasoning models never expose their raw chain of thought over the API — they return only a short, post-hoc *summary* of it. That summary is not the model's actual reasoning, and the provider's API will reject it or mis-handle it if you send it back as `reasoning_content`. Because this filter installs its patch **process-wide** (see [Recommended setup](#recommended-setup)), it forces reasoning on those models too unless you opt them out, and *not attaching* the filter to them does nothing to help. Naming them in the exclusion valve is the only reliable protection.
 </details>
 
 <details>
 <summary><b>Should I enable the filter Global or per-model?</b></summary>
 
-**Global — it has to be.** The filter monkey-patches a module-level function, so the patch is process-wide the moment the filter loads; it is never scoped to the models you attach it to. A per-model install does not limit which models get `reasoning_content` forced, and it leaves the `excluded_model_ids` set dependent on whether an attached model happened to run — which is exactly when you don't want it empty. Enable it Global so `inlet` runs on every request and your exclusions are always live. Full reasoning in [Recommended setup](#-recommended-setup).
+**Global — it has to be.** The filter monkey-patches a module-level function, so the patch is process-wide the moment the filter loads; it is never scoped to the models you attach it to. A per-model install does not limit which models get `reasoning_content` forced, and it leaves the `excluded_model_ids` set dependent on whether an attached model happened to run — which is exactly when you don't want it empty. Enable it Global so `inlet` runs on every request and your exclusions are always live. Full reasoning in [Recommended setup](#recommended-setup).
 </details>
 
 <details>
