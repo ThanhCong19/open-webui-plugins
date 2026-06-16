@@ -125,7 +125,7 @@ The **tool** mounts the iframe wrapper, injects the design-system CSS/JS, and ta
 
 1. Copy the contents of `SKILL.md`
 2. In Open WebUI: **Workspace → Knowledge → Create Skill**
-3. Name it exactly **`visualize`** (the tool calls `view_skill("visualize")` by this name)
+3. Name it **`Visualize`** (the tool calls `view_skill("visualize")` by this name)
 4. Paste. **Save**.
 
 > [!TIP]
@@ -134,8 +134,8 @@ The **tool** mounts the iframe wrapper, injects the design-system CSS/JS, and ta
 ### 3. Attach to your model
 
 1. **Admin Panel → Settings → Models** → edit the model you want
-2. Under **Tools**, enable **Inline Visualizer (Streaming)**
-3. Under **Skills**, attach **visualize**
+2. Under **Tools**, enable **Visualizer**
+3. Under **Skills**, attach **Visualizer**
 4. Ensure **native function calling** is enabled
 5. Save.
 
@@ -296,8 +296,6 @@ Five strings translated per language. That's **230 translations shipping** in th
 ## 🔒 Security
 
 Every visualization renders in a sandboxed iframe with a configurable Content Security Policy. Open **Workspace → Tools → Inline Visualizer → gear icon** to change the valve.
-
-<img src="assets/screenshot_valves.png" alt="Security level valve" width="520"/>
 
 | Level | Outbound requests | External images | URL param stripping | Use case |
 |-------|:-:|:-:|:-:|---|
