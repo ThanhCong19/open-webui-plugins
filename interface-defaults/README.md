@@ -6,7 +6,7 @@ Set the **Settings → Interface** defaults for your entire instance from one fu
 > **Requires Open WebUI `0.10.0` or newer.** This is an `Event` function and depends on the native events system (`user.created` / `function.valves_updated`). It will not load on older versions.
 
 > [!TIP]
-> **🚀 [Jump to Setup](#-setup)** — paste, enable, configure. Under a minute, no restart.
+> **🚀 [Jump to Setup](#setup)** — paste, enable, configure. Under a minute, no restart.
 
 ## ✨ Features
 
@@ -34,7 +34,7 @@ Both bulk operations run in the background, so saving returns immediately even o
 |------|------|-----------------|
 | `event.py` | Event | Admin Panel → Functions |
 
-## 📦 Setup
+## Setup
 
 1. Copy the contents of `event.py`, or click **Get** on the Community page.
 2. In Open WebUI, go to **Admin Panel → Functions → +** (Import/Create).
