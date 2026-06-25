@@ -1,35 +1,53 @@
-# Interface Defaults
+# 🎛️ Interface Defaults
 
-Set the **Settings > Interface** defaults for your whole instance, configured entirely from this function's Valves in the admin panel. No custom UI, no monkey-patching, no startup hooks — it rides Open WebUI's native events system.
+Set the **Settings → Interface** defaults for your entire instance from one function's Valves. New users are seeded automatically, and two one-shot buttons let you apply the defaults to everyone or factory-reset the whole instance.
 
-## What it does
+> [!IMPORTANT]
+> **Requires Open WebUI `0.10.0` or newer.** This is an `Event` function and depends on the native events system (`user.created` / `function.valves_updated`). It will not load on older versions.
 
-- **New users are seeded automatically.** The function subscribes to the `user.created` event (which fires for signup, OAuth, **and** SCIM), so every newly created account inherits the interface settings you configure here.
-- **Apply to all existing users** (one-shot button). Tick `apply_to_all_existing_users` + Save to push the configured settings to everyone who already exists. Normally only needed once, right after installing.
-- **Full factory reset** (one-shot button). Tick `reset_all_users_to_factory` + Save to clear every user's interface overrides (reverting everyone to Open WebUI's built-in defaults) **and** reset this function's own settings back to their defaults.
+> [!TIP]
+> **🚀 [Jump to Setup](#-setup)** — paste, enable, configure. Under a minute, no restart.
 
-Both buttons run in the background and untick themselves once done.
+## ✨ Features
 
-## How it works
+- **Automatic seeding of new users** — every account created via signup, OAuth, or SCIM inherits your configured interface settings.
+- **Apply to all existing users** — a one-shot button to push the defaults to everyone already on the instance.
+- **Full factory reset** — a one-shot button that clears every user's interface overrides *and* resets this function's config back to defaults.
+- **Native Valves UI** — booleans render as toggles, direction as a dropdown, text scale as a number. No custom UI.
+- Defaults match Open WebUI's own factory values, so nothing changes until you change it.
 
-Open WebUI's events system dispatches in-process to any `Event` function that defines an `event` handler. This plugin:
+## ✅ How it works
 
-- on `user.created` → writes the configured interface settings into the new user's `settings.ui`.
-- on `function.valves_updated` (its own) → checks the trigger toggles and runs the bulk apply / reset, then clears the trigger via the model layer (which doesn't re-publish, so there's no loop).
+Open WebUI dispatches events in-process to any `Event` function that defines an `event` handler. This plugin reacts to two:
 
-The settings themselves are plain Valves: booleans render as toggles, `chatDirection` as a dropdown, `textScale` as a number. Defaults match Open WebUI's factory values, so a fresh install behaves identically until you change something.
+- `user.created` → writes the configured interface settings into the new user's `settings.ui`.
+- `function.valves_updated` (its own) → runs the apply / reset when you tick a trigger toggle and **Save**, then unticks it via the model layer (no re-publish, so there is no loop).
 
-## Requirements
+Both bulk operations run in the background, so saving returns immediately even on large instances.
 
-- An Open WebUI build with the **events system** (the `Event` function type + `user.created` / `function.valves_updated` events). Available on `dev`; ships in the corresponding release.
-- Valve descriptions render as markdown on builds that include the markdown valve-description change (also on `dev`); on older builds they show as plain text.
+> [!NOTE]
+> **Apply vs reset.** *Apply* keeps your configured settings (so new users keep getting them). *Reset* is a true factory reset — it wipes both the users' overrides and this function's own config.
 
-## Install
+## Components
 
-Admin Panel > Functions > **+** (Import/Create) > paste `event.py`, save, and **enable** it. Configure the defaults in its Valves. That's it.
+| File | Type | Install location |
+|------|------|-----------------|
+| `event.py` | Event | Admin Panel → Functions |
 
-## Notes
+## 📦 Setup
 
-- **Apply vs reset asymmetry:** apply keeps your configured settings (so new users keep getting them); reset wipes both the users and the config (it's a true factory reset).
-- **Cosmetic:** after a trigger runs, the background task unticks it in the DB, but an already-open admin form may still *show* it ticked until you refresh.
-- Existing users are never touched except by the two explicit buttons.
+1. Copy the contents of `event.py`, or click **Get** on the Community page.
+2. In Open WebUI, go to **Admin Panel → Functions → +** (Import/Create).
+3. Paste the code and click **Save**.
+4. **Enable** the function.
+5. Open its **Valves** and set your interface defaults.
+6. *(First install only)* Tick **Apply to all existing users** and **Save** to seed everyone already on the instance.
+
+## Usage
+
+- **New users** — nothing to do; they're seeded automatically on registration.
+- **Change a default later** — edit the Valves, then either leave it (new users get the change automatically) or tick **Apply to all existing users** + **Save** to push it to everyone.
+- **Start over** — tick **Reset all users to factory** + **Save**.
+
+> [!WARNING]
+> The two buttons act on **every** user. *Apply* overwrites the configured keys for all existing users; *Reset* clears all interface overrides instance-wide. Both untick themselves once the background job finishes — an already-open form may show the toggle as still ticked until you refresh.
