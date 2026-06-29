@@ -1,6 +1,6 @@
 # 🧩 Open WebUI Plugins
 
-A curated collection of plugins for [Open WebUI](https://github.com/open-webui/open-webui) — tools, skills, filters, pipes, and actions that extend your AI chat experience.
+A curated collection of plugins for [Open WebUI](https://github.com/open-webui/open-webui) — tools, skills, filters, pipes, actions and events that extend your AI chat experience.
 
 Each plugin lives in its own folder with a README explaining what it does, what components it includes, and how to set it up.
 
@@ -27,6 +27,7 @@ Each plugin lives in its own folder with a README explaining what it does, what 
 | **Filters** | Transform messages before they reach the model or before they're shown to you | Admin Panel → Functions |
 | **Pipes** | Custom model endpoints — proxy, merge, or create entirely new model behaviors | Admin Panel → Functions |
 | **Actions** | Buttons that appear below messages for quick actions | Admin Panel → Functions |
+| **Events** | React to system events as they fire (user signup, valve updates, lifecycle hooks). Can also register routes and serve standalone pages. | Admin Panel → Functions |
 
 ---
 
