@@ -1,7 +1,7 @@
 """
 title: Inline Visualizer
 author: Classic298
-version: 2.1.2
+version: 2.1.3
 required_open_webui_version: 0.9.5
 description: Renders interactive HTML/SVG visualizations inline in chat. Requires "iframe Sandbox Allow Same Origin" to be enabled in Open WebUI Settings -> Interface. For design instructions, the model should call view_skill("visualize").
 """
@@ -13,7 +13,7 @@ from typing import Literal
 # version can be verified at runtime (search DevTools for
 # `data-iv-build` on <html>).  Bump on every protocol-level change
 # so stale cached iframes can be spotted immediately.
-_IV_BUILD = "2.1.0"
+_IV_BUILD = "2.1.1"
 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -1846,6 +1846,17 @@ STREAMING_OBSERVER_SCRIPT = """
     return null;
   }
 
+  // True when `s` ends with a non-empty prefix of START_MARK (>= '@@@').
+  // Lets us hide the marker paragraph while it is still streaming in
+  // char-by-char (e.g. "@@@V"), so the raw start marker never flashes
+  // before the full token matches.
+  function endsWithPartialStart(s) {
+    for (var k = Math.min(s.length, START_MARK.length); k >= 3; k--) {
+      if (START_MARK.substr(0, k) === s.substr(s.length - k)) return true;
+    }
+    return false;
+  }
+
   // allowWrap=false during streaming (wrapping a text node breaks
   // Svelte's tracked refs and stalls post-VIZ chunks), true on finalize.
   function hideMarkerRange(allowWrap) {
@@ -1908,7 +1919,9 @@ STREAMING_OBSERVER_SCRIPT = """
       var hadStartLocal = tv.indexOf(START_MARK) !== -1;
       var hadEndLocal = tv.indexOf(END_MARK) !== -1;
 
-      var hideThis = inside || hadStartLocal || hadEndLocal;
+      var hadPartialStart = !hadStartLocal && !hadEndLocal && endsWithPartialStart(tv);
+
+      var hideThis = inside || hadStartLocal || hadEndLocal || hadPartialStart;
 
       if (hideThis) {
         var block = nearestBlockAncestor(tn.parentNode, msg);
@@ -2805,7 +2818,8 @@ class Tools:
         self,
         title: str = "Visualization",
         __event_call__=None,
-    ) -> tuple:
+        __event_emitter__=None,
+    ):
         """
         What this tool does: visualize() mounts an iframe sandbox directly in the chat.
         After this tool is called, the assistant must stream exactly one HTML/SVG visualization fragment between the plain-text delimiters @@@VIZ-START and @@@VIZ-END.
@@ -2875,13 +2889,14 @@ return (() => {
             except Exception:
                 pass
 
+        html = _build_html(
+            self.valves.security_level,
+            title,
+            lang,
+            chime=self.valves.chime,
+        )
         response = HTMLResponse(
-            content=_build_html(
-                self.valves.security_level,
-                title,
-                lang,
-                chime=self.valves.chime,
-            ),
+            content=html,
             headers={"Content-Disposition": "inline"},
         )
         result_context = (
@@ -2898,4 +2913,12 @@ return (() => {
             f"the HTML source itself. Emit exactly ONE @@@VIZ-START/@@@VIZ-END pair "
             f"for this tool call."
         )
+        # Under native tool calling the embeds attached to the per-tool-call result item are not painted by the frontend,
+        # whereas the message-level "embeds" channel is path-independent and always renders (it is the same channel legacy already uses).
+        # Fall back to the original HTMLResponse return when no event emitter is available to preserve prior behavior.
+        if __event_emitter__:
+            await __event_emitter__(
+                {"type": "embeds", "data": {"embeds": [html]}}
+            )
+            return result_context
         return response, result_context
