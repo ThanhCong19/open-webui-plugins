@@ -1,7 +1,7 @@
 """
 title: Interface Defaults
 author: Classic298
-version: 1.0.0
+version: 1.0.1
 required_open_webui_version: 0.10.0
 description: Manage Settings > Interface defaults instance-wide from this function's Valves. New users are seeded automatically (subscribes to user.created, which fires for signup, OAuth, and SCIM). Two trigger toggles act as one-shot buttons: "Apply to all existing users" pushes the settings above to everyone (normally only needed once, right after install), and "Reset all users to factory" does a full reset — clears every user's overrides AND resets this config back to defaults. Tick a trigger and Save; it runs in the background and unticks itself. Booleans render as toggles, direction as a dropdown, text scale as a number. No custom UI, no monkey-patching, no startup hooks. Defaults below match Open WebUI's factory values.
 """
