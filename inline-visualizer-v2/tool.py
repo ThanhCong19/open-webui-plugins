@@ -1259,6 +1259,58 @@ var _ivDoneStr = {
   sw: 'Taswira tayari'
 };
 
+// Export failure toast (PNG/SVG download dead-ended).
+var _ivExportErrStr = {
+  en: 'Export failed',
+  de: 'Export fehlgeschlagen',
+  cs: 'Export se nezdařil',
+  hu: 'Az exportálás sikertelen',
+  hr: 'Izvoz nije uspio',
+  pl: 'Eksport nie powiódł się',
+  fr: 'Échec de l’exportation',
+  nl: 'Exporteren mislukt',
+  es: 'Error al exportar',
+  pt: 'Falha na exportação',
+  it: 'Esportazione non riuscita',
+  ca: 'Ha fallat l’exportació',
+  gl: 'Fallou a exportación',
+  eu: 'Esportazioak huts egin du',
+  da: 'Eksport mislykkedes',
+  sv: 'Exporten misslyckades',
+  no: 'Eksporten mislyktes',
+  fi: 'Vienti epäonnistui',
+  is: 'Útflutningur mistókst',
+  sk: 'Export zlyhal',
+  sl: 'Izvoz ni uspel',
+  sr: 'Извоз није успео',
+  bs: 'Izvoz nije uspio',
+  bg: 'Експортирането е неуспешно',
+  mk: 'Извезувањето не успеа',
+  uk: 'Не вдалося експортувати',
+  ru: 'Не удалось экспортировать',
+  be: 'Не ўдалося экспартаваць',
+  lt: 'Nepavyko eksportuoti',
+  lv: 'Neizdevās eksportēt',
+  et: 'Eksportimine ebaõnnestus',
+  ro: 'Exportul a eșuat',
+  el: 'Η εξαγωγή απέτυχε',
+  sq: 'Eksportimi dështoi',
+  tr: 'Dışa aktarma başarısız oldu',
+  az: 'İxrac uğursuz oldu',
+  ar: 'فشل التصدير',
+  he: 'הייצוא נכשל',
+  zh: '导出失败',
+  ja: 'エクスポートに失敗しました',
+  ko: '내보내기 실패',
+  vi: 'Xuất không thành công',
+  th: 'การส่งออกล้มเหลว',
+  id: 'Ekspor gagal',
+  ms: 'Eksport gagal',
+  hi: 'निर्यात विफल',
+  bn: 'এক্সপোর্ট ব্যর্থ হয়েছে',
+  sw: 'Imeshindwa kuhamisha'
+};
+
 var _ivErrBodyStr = {
   en: 'Open User Settings \u2192 Interface, scroll down, and enable "Allow iframe same origin" to use streaming mode.',
   de: 'Öffne Benutzereinstellungen \u2192 Oberfläche, scrolle nach unten und aktiviere „Allow iframe same origin" für den Streaming-Modus.',
@@ -1487,7 +1539,12 @@ function _ivSvgSize(svg) {
 // Terminal failure reporter — the fallback chain bottoms out here so a
 // dead-end never leaves the user with a silent no-op.
 function _ivExportError() {
-  try { if (typeof toast === 'function') toast('Export failed', 'error'); } catch (e) {}
+  try {
+    if (typeof toast !== 'function') return;
+    var msg = (typeof _ivExportErrStr !== 'undefined' &&
+               (_ivExportErrStr[_ivLang] || _ivExportErrStr.en)) || 'Export failed';
+    toast(msg, 'error');
+  } catch (e) {}
 }
 
 function _ivDownloadSVG() {
