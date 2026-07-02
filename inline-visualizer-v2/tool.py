@@ -2,7 +2,7 @@
 title: Inline Visualizer
 author: Classic298
 version: 2.1.3
-required_open_webui_version: 0.9.5
+required_open_webui_version: 0.10.2
 description: Renders interactive HTML/SVG visualizations inline in chat. Requires "iframe Sandbox Allow Same Origin" to be enabled in Open WebUI Settings -> Interface. For design instructions, the model should call view_skill("visualize").
 """
 
@@ -13,7 +13,7 @@ from typing import Literal
 # version can be verified at runtime (search DevTools for
 # `data-iv-build` on <html>).  Bump on every protocol-level change
 # so stale cached iframes can be spotted immediately.
-_IV_BUILD = "2.1.1"
+_IV_BUILD = "2.1.3"
 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
