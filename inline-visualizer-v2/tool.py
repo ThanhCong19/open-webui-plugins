@@ -1358,57 +1358,57 @@ var _ivIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
 function _ivFirstSvg() {
   var svgs = document.querySelectorAll('svg');
   for (var i = 0; i < svgs.length; i++) {
-    var s = svgs[i];
-    if (s.ownerSVGElement) continue;        // skip nested svg
-    var p = s.parentNode, inWrap = false;   // skip the download icon itself
-    while (p) { if (p.id === 'iv-dl-wrap') { inWrap = true; break; } p = p.parentNode; }
+    var svg = svgs[i];
+    if (svg.ownerSVGElement) continue;            // skip nested svg
+    var ancestor = svg.parentNode, inWrap = false; // skip the download icon itself
+    while (ancestor) { if (ancestor.id === 'iv-dl-wrap') { inWrap = true; break; } ancestor = ancestor.parentNode; }
     if (inWrap) continue;
-    return s;
+    return svg;
   }
   return null;
 }
 
 function _ivDlMenu(ev) {
   if (ev) ev.stopPropagation();
-  var m = document.getElementById('iv-dl-menu');
-  if (!m) { _ivDownload(); return; }
-  if (m.style.display !== 'none') { m.style.display = 'none'; return; }
+  var menu = document.getElementById('iv-dl-menu');
+  if (!menu) { _ivDownload(); return; }
+  if (menu.style.display !== 'none') { menu.style.display = 'none'; return; }
   // SVG export only makes sense when the visualization contains an SVG.
   // PNG is always available (vector rasterization or html2canvas screenshot).
   var hasSvg = !!_ivFirstSvg();
-  var items = m.querySelectorAll('.iv-dl-item');
+  var items = menu.querySelectorAll('.iv-dl-item');
   for (var i = 0; i < items.length; i++) {
-    var t = items[i].textContent;
-    if (t === 'SVG') items[i].style.display = hasSvg ? 'block' : 'none';
+    var label = items[i].textContent;
+    if (label === 'SVG') items[i].style.display = hasSvg ? 'block' : 'none';
   }
-  m.style.display = 'block';
+  menu.style.display = 'block';
   var closer = function() {
-    m.style.display = 'none';
+    menu.style.display = 'none';
     document.removeEventListener('click', closer, true);
   };
   setTimeout(function() { document.addEventListener('click', closer, true); }, 0);
 }
 
 function _ivBaseName() {
-  var f = (document.title || 'visualization').replace(/[<>:"\\/|?*]+/g, '-').replace(/\s+/g, ' ').trim();
-  if (!f) f = 'visualization';
-  if (f.length > 200) f = f.substring(0, 200).trim();
-  return f;
+  var name = (document.title || 'visualization').replace(/[<>:"\\/|?*]+/g, '-').replace(/\s+/g, ' ').trim();
+  if (!name) name = 'visualization';
+  if (name.length > 200) name = name.substring(0, 200).trim();
+  return name;
 }
 
-function _ivSaveBlob(blob, fname) {
+function _ivSaveBlob(blob, fileName) {
   var url = URL.createObjectURL(blob);
-  var go = function() {
-    var a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = fname;
-    if (!_ivIsIOS) a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() { a.remove(); URL.revokeObjectURL(url); }, 60000);
+  var triggerDownload = function() {
+    var link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = url;
+    link.download = fileName;
+    if (!_ivIsIOS) link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function() { link.remove(); URL.revokeObjectURL(url); }, 60000);
   };
-  if (_ivIsIOS) { setTimeout(go, 0); } else { go(); }
+  if (_ivIsIOS) { setTimeout(triggerDownload, 0); } else { triggerDownload(); }
 }
 
 function _ivResolvedBg() {
@@ -1416,55 +1416,55 @@ function _ivResolvedBg() {
   // detected theme (data-theme) so dark-mode exports stay dark.
   var bg = '';
   try {
-    var b = window.getComputedStyle(document.body).backgroundColor;
-    if (b && b !== 'rgba(0, 0, 0, 0)' && b !== 'transparent') bg = b;
+    var bodyBg = window.getComputedStyle(document.body).backgroundColor;
+    if (bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)' && bodyBg !== 'transparent') bg = bodyBg;
     if (!bg) {
-      var h = window.getComputedStyle(document.documentElement).backgroundColor;
-      if (h && h !== 'rgba(0, 0, 0, 0)' && h !== 'transparent') bg = h;
+      var htmlBg = window.getComputedStyle(document.documentElement).backgroundColor;
+      if (htmlBg && htmlBg !== 'rgba(0, 0, 0, 0)' && htmlBg !== 'transparent') bg = htmlBg;
     }
   } catch (e) {}
   if (!bg) {
     try {
-      var v = window.getComputedStyle(document.documentElement).getPropertyValue('--color-bg');
-      if (v && v.trim()) bg = v.trim();
+      var varBg = window.getComputedStyle(document.documentElement).getPropertyValue('--color-bg');
+      if (varBg && varBg.trim()) bg = varBg.trim();
     } catch (e) {}
   }
   if (!bg) {
-    var dark = (document.documentElement.getAttribute('data-theme') || '') === 'dark';
-    bg = dark ? '#1A1A1A' : '#ffffff';
+    var isDark = (document.documentElement.getAttribute('data-theme') || '') === 'dark';
+    bg = isDark ? '#1A1A1A' : '#ffffff';
   }
   return bg;
 }
 
-function _ivSerializedSvg(s) {
+function _ivSerializedSvg(svg) {
   // Inline computed styles so CSS-class based fills/strokes/fonts
   // survive outside the document stylesheet.
-  var clone = s.cloneNode(true);
+  var clone = svg.cloneNode(true);
   var props = ['fill', 'fill-opacity', 'stroke', 'stroke-width',
     'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'opacity',
     'font-family', 'font-size', 'font-weight', 'font-style',
     'text-anchor', 'dominant-baseline', 'letter-spacing'];
-  var src = s.querySelectorAll('*');
-  var dst = clone.querySelectorAll('*');
-  for (var i = 0; i < src.length && i < dst.length; i++) {
-    var cs;
-    try { cs = window.getComputedStyle(src[i]); } catch (e) { continue; }
-    var st = '';
+  var liveNodes = svg.querySelectorAll('*');
+  var cloneNodes = clone.querySelectorAll('*');
+  for (var i = 0; i < liveNodes.length && i < cloneNodes.length; i++) {
+    var computed;
+    try { computed = window.getComputedStyle(liveNodes[i]); } catch (e) { continue; }
+    var styleStr = '';
     for (var j = 0; j < props.length; j++) {
-      var v = cs.getPropertyValue(props[j]);
-      if (v && v !== 'normal' && v !== 'auto') st += props[j] + ':' + v + ';';
+      var value = computed.getPropertyValue(props[j]);
+      if (value && value !== 'normal' && value !== 'auto') styleStr += props[j] + ':' + value + ';';
     }
-    if (st) dst[i].setAttribute('style', st);
+    if (styleStr) cloneNodes[i].setAttribute('style', styleStr);
   }
   if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   // Theme-matching background rect so dark-mode exports stay readable.
   try {
     var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    var vb = (s.viewBox && s.viewBox.baseVal) || null;
-    rect.setAttribute('x', vb ? vb.x : 0);
-    rect.setAttribute('y', vb ? vb.y : 0);
-    rect.setAttribute('width', vb && vb.width ? vb.width : '100%');
-    rect.setAttribute('height', vb && vb.height ? vb.height : '100%');
+    var viewBox = (svg.viewBox && svg.viewBox.baseVal) || null;
+    rect.setAttribute('x', viewBox ? viewBox.x : 0);
+    rect.setAttribute('y', viewBox ? viewBox.y : 0);
+    rect.setAttribute('width', viewBox && viewBox.width ? viewBox.width : '100%');
+    rect.setAttribute('height', viewBox && viewBox.height ? viewBox.height : '100%');
     rect.setAttribute('fill', _ivResolvedBg());
     rect.setAttribute('data-iv-bg', '1');
     clone.insertBefore(rect, clone.firstChild);
@@ -1472,42 +1472,42 @@ function _ivSerializedSvg(s) {
   return new XMLSerializer().serializeToString(clone);
 }
 
-function _ivSvgSize(s) {
-  var w = 0, h = 0;
-  var vb = s.viewBox && s.viewBox.baseVal;
-  if (vb && vb.width > 0) { w = vb.width; h = vb.height; }
-  if (!w || !h) {
-    var r = s.getBoundingClientRect();
-    w = w || r.width || 1200;
-    h = h || r.height || 800;
+function _ivSvgSize(svg) {
+  var width = 0, height = 0;
+  var viewBox = svg.viewBox && svg.viewBox.baseVal;
+  if (viewBox && viewBox.width > 0) { width = viewBox.width; height = viewBox.height; }
+  if (!width || !height) {
+    var rect = svg.getBoundingClientRect();
+    width = width || rect.width || 1200;
+    height = height || rect.height || 800;
   }
-  return { w: Math.ceil(w), h: Math.ceil(h) };
+  return { w: Math.ceil(width), h: Math.ceil(height) };
 }
 
 function _ivDownloadSVG() {
-  var s = _ivFirstSvg();
-  if (!s) return;
-  var xml = _ivSerializedSvg(s);
+  var svg = _ivFirstSvg();
+  if (!svg) return;
+  var xml = _ivSerializedSvg(svg);
   _ivSaveBlob(new Blob([xml], {type: 'image/svg+xml;charset=utf-8'}), _ivBaseName() + '.svg');
 }
 
 function _ivSvgToPng() {
-  var s = _ivFirstSvg();
-  if (!s) return;
-  var size = _ivSvgSize(s);
-  var xml = _ivSerializedSvg(s);
+  var svg = _ivFirstSvg();
+  if (!svg) return;
+  var size = _ivSvgSize(svg);
+  var xml = _ivSerializedSvg(svg);
   var img = new Image();
   img.onload = function() {
-    var c = document.createElement('canvas');
-    c.width = size.w * 2;   // 2x for crisp rendering
-    c.height = size.h * 2;
-    var ctx = c.getContext('2d');
+    var canvas = document.createElement('canvas');
+    canvas.width = size.w * 2;   // 2x for crisp rendering
+    canvas.height = size.h * 2;
+    var ctx = canvas.getContext('2d');
     ctx.fillStyle = _ivResolvedBg();
-    ctx.fillRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, 0, 0, c.width, c.height);
-    if (c.toBlob) {
-      c.toBlob(function(bl) {
-        if (bl) _ivSaveBlob(bl, _ivBaseName() + '.png');
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (canvas.toBlob) {
+      canvas.toBlob(function(blob) {
+        if (blob) _ivSaveBlob(blob, _ivBaseName() + '.png');
       }, 'image/png');
     }
   };
@@ -1519,28 +1519,28 @@ function _ivHtml2Png() {
   // The CDN is permitted by the iframe CSP (script-src includes jsdelivr);
   // no data leaves the iframe (connect-src stays 'none').
   var run = function() {
-    var w = document.getElementById('iv-dl-wrap');
-    if (w) w.style.visibility = 'hidden';
+    var dlWrap = document.getElementById('iv-dl-wrap');
+    if (dlWrap) dlWrap.style.visibility = 'hidden';
     window.html2canvas(document.body, {backgroundColor: _ivResolvedBg(), scale: 2, logging: false})
-      .then(function(c) {
-        if (w) w.style.visibility = '';
-        if (c.toBlob) {
-          c.toBlob(function(bl) {
-            if (bl) _ivSaveBlob(bl, _ivBaseName() + '.png');
+      .then(function(canvas) {
+        if (dlWrap) dlWrap.style.visibility = '';
+        if (canvas.toBlob) {
+          canvas.toBlob(function(blob) {
+            if (blob) _ivSaveBlob(blob, _ivBaseName() + '.png');
           }, 'image/png');
         }
       })
       .catch(function() {
-        if (w) w.style.visibility = '';
+        if (dlWrap) dlWrap.style.visibility = '';
         _ivSvgToPng();
       });
   };
   if (window.html2canvas) { run(); return; }
-  var sc = document.createElement('script');
-  sc.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-  sc.onload = run;
-  sc.onerror = function() { _ivSvgToPng(); };
-  document.head.appendChild(sc);
+  var scriptEl = document.createElement('script');
+  scriptEl.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+  scriptEl.onload = run;
+  scriptEl.onerror = function() { _ivSvgToPng(); };
+  document.head.appendChild(scriptEl);
 }
 
 function _ivDomToPng() {
@@ -1549,8 +1549,8 @@ function _ivDomToPng() {
   // export exactly as rendered. Live canvases (Chart.js) are swapped for
   // images; current input states (sliders) are frozen into the clone.
   try {
-    var W = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, document.body.offsetWidth);
-    var H = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, document.body.offsetHeight);
+    var pageWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, document.body.offsetWidth);
+    var pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, document.body.offsetHeight);
     var clone = document.documentElement.cloneNode(true);
     // Freeze live computed colors/opacity/transforms into the clone:
     // SVG-as-image restarts CSS animations at frame 0 (fade-ins would
@@ -1559,71 +1559,71 @@ function _ivDomToPng() {
     var PROPS = ['color', 'background-color', 'border-top-color',
       'border-right-color', 'border-bottom-color', 'border-left-color',
       'fill', 'stroke', 'box-shadow'];
-    var liveAll = document.documentElement.querySelectorAll('*');
-    var cloneAll = clone.querySelectorAll('*');
-    for (var q = 0; q < liveAll.length && q < cloneAll.length; q++) {
+    var liveNodes = document.documentElement.querySelectorAll('*');
+    var cloneNodes = clone.querySelectorAll('*');
+    for (var n = 0; n < liveNodes.length && n < cloneNodes.length; n++) {
       try {
-        var cs = window.getComputedStyle(liveAll[q]);
-        cloneAll[q].style.opacity = cs.opacity;
-        if (cs.visibility !== 'visible') cloneAll[q].style.visibility = cs.visibility;
-        if (cs.transform && cs.transform !== 'none') cloneAll[q].style.transform = cs.transform;
-        for (var p = 0; p < PROPS.length; p++) {
-          var pv = cs.getPropertyValue(PROPS[p]);
-          if (pv) cloneAll[q].style.setProperty(PROPS[p], pv);
+        var computed = window.getComputedStyle(liveNodes[n]);
+        cloneNodes[n].style.opacity = computed.opacity;
+        if (computed.visibility !== 'visible') cloneNodes[n].style.visibility = computed.visibility;
+        if (computed.transform && computed.transform !== 'none') cloneNodes[n].style.transform = computed.transform;
+        for (var pi = 0; pi < PROPS.length; pi++) {
+          var propValue = computed.getPropertyValue(PROPS[pi]);
+          if (propValue) cloneNodes[n].style.setProperty(PROPS[pi], propValue);
         }
       } catch (e) {}
     }
-    var killer = document.createElement('style');
-    killer.textContent = '* { animation: none !important; transition: none !important; }';
+    var noAnimStyle = document.createElement('style');
+    noAnimStyle.textContent = '* { animation: none !important; transition: none !important; }';
     var headEl = clone.querySelector('head');
-    if (headEl) { headEl.appendChild(killer); } else { clone.appendChild(killer); }
-    var junk = clone.querySelectorAll('#iv-dl-wrap, script');
-    for (var i = 0; i < junk.length; i++) {
-      if (junk[i].parentNode) junk[i].parentNode.removeChild(junk[i]);
+    if (headEl) { headEl.appendChild(noAnimStyle); } else { clone.appendChild(noAnimStyle); }
+    var junkNodes = clone.querySelectorAll('#iv-dl-wrap, script');
+    for (var i = 0; i < junkNodes.length; i++) {
+      if (junkNodes[i].parentNode) junkNodes[i].parentNode.removeChild(junkNodes[i]);
     }
-    var liveCv = document.querySelectorAll('canvas');
-    var cloneCv = clone.querySelectorAll('canvas');
-    for (var j = 0; j < liveCv.length && j < cloneCv.length; j++) {
+    var liveCanvases = document.querySelectorAll('canvas');
+    var cloneCanvases = clone.querySelectorAll('canvas');
+    for (var j = 0; j < liveCanvases.length && j < cloneCanvases.length; j++) {
       try {
-        var im = document.createElement('img');
-        im.src = liveCv[j].toDataURL('image/png');
-        var r = liveCv[j].getBoundingClientRect();
-        var st = (cloneCv[j].getAttribute('style') || '') + ';width:' + r.width + 'px;height:' + r.height + 'px;';
-        im.setAttribute('style', st);
-        if (cloneCv[j].getAttribute('class')) im.setAttribute('class', cloneCv[j].getAttribute('class'));
-        cloneCv[j].parentNode.replaceChild(im, cloneCv[j]);
+        var imgEl = document.createElement('img');
+        imgEl.src = liveCanvases[j].toDataURL('image/png');
+        var rect = liveCanvases[j].getBoundingClientRect();
+        var styleStr = (cloneCanvases[j].getAttribute('style') || '') + ';width:' + rect.width + 'px;height:' + rect.height + 'px;';
+        imgEl.setAttribute('style', styleStr);
+        if (cloneCanvases[j].getAttribute('class')) imgEl.setAttribute('class', cloneCanvases[j].getAttribute('class'));
+        cloneCanvases[j].parentNode.replaceChild(imgEl, cloneCanvases[j]);
       } catch (e) {}
     }
-    var liveIn = document.querySelectorAll('input');
-    var cloneIn = clone.querySelectorAll('input');
-    for (var k = 0; k < liveIn.length && k < cloneIn.length; k++) {
+    var liveInputs = document.querySelectorAll('input');
+    var cloneInputs = clone.querySelectorAll('input');
+    for (var k = 0; k < liveInputs.length && k < cloneInputs.length; k++) {
       try {
-        cloneIn[k].setAttribute('value', liveIn[k].value);
-        if (liveIn[k].checked) cloneIn[k].setAttribute('checked', 'checked');
+        cloneInputs[k].setAttribute('value', liveInputs[k].value);
+        if (liveInputs[k].checked) cloneInputs[k].setAttribute('checked', 'checked');
       } catch (e) {}
     }
     var bg = _ivResolvedBg();
     clone.style.background = bg;
     var xml = new XMLSerializer().serializeToString(clone);
-    var fo = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '">'
+    var svgWrapper = '<svg xmlns="http://www.w3.org/2000/svg" width="' + pageWidth + '" height="' + pageHeight + '">'
       + '<foreignObject width="100%" height="100%">' + xml + '</foreignObject></svg>';
     var img = new Image();
     img.onload = function() {
-      var c = document.createElement('canvas');
-      c.width = W * 2;
-      c.height = H * 2;
-      var ctx = c.getContext('2d');
+      var canvas = document.createElement('canvas');
+      canvas.width = pageWidth * 2;
+      canvas.height = pageHeight * 2;
+      var ctx = canvas.getContext('2d');
       ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0, c.width, c.height);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       try {
-        c.toBlob(function(bl) {
-          if (bl) { _ivSaveBlob(bl, _ivBaseName() + '.png'); } else { _ivHtml2Png(); }
+        canvas.toBlob(function(blob) {
+          if (blob) { _ivSaveBlob(blob, _ivBaseName() + '.png'); } else { _ivHtml2Png(); }
         }, 'image/png');
       } catch (e) { _ivHtml2Png(); }
     };
     img.onerror = function() { _ivHtml2Png(); };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(fo);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgWrapper);
   } catch (e) { _ivHtml2Png(); }
 }
 
@@ -1631,13 +1631,13 @@ function _ivDownloadPNG() {
   // Pure/dominant SVG: crisp vector rasterization.
   // HTML or mixed layouts: native foreignObject screenshot (theme-faithful);
   // html2canvas remains as a fallback (e.g. Safari foreignObject taint).
-  var s = _ivFirstSvg();
-  if (s) {
+  var svg = _ivFirstSvg();
+  if (svg) {
     try {
-      var r = s.getBoundingClientRect();
-      var bw = document.body.scrollWidth || 1;
-      var bh = document.body.scrollHeight || 1;
-      if ((r.width * r.height) / (bw * bh) >= 0.5) { _ivSvgToPng(); return; }
+      var rect = svg.getBoundingClientRect();
+      var bodyWidth = document.body.scrollWidth || 1;
+      var bodyHeight = document.body.scrollHeight || 1;
+      if ((rect.width * rect.height) / (bodyWidth * bodyHeight) >= 0.5) { _ivSvgToPng(); return; }
     } catch (e) { _ivSvgToPng(); return; }
   }
   _ivDomToPng();
