@@ -20,36 +20,70 @@ _TRIGGERS = ('apply_to_all_existing_users', 'reset_all_users_to_factory')
 
 class Event:
     class Valves(BaseModel):
-        titleAutoGenerate: bool = Field(default=True, description='Auto-generate chat titles')
-        autoTags: bool = Field(default=True, description='Auto-generate tags')
-        autoFollowUps: bool = Field(default=True, description='Auto-generate follow-ups')
+        # ── UI ──────────────────────────────────────────────────────────────
+        textScale: float = Field(default=1.0, description='UI scale (1.0 - 1.5)')
         highContrastMode: bool = Field(default=False, description='High contrast mode')
-        detectArtifacts: bool = Field(default=True, description='Detect artifacts automatically')
-        responseAutoCopy: bool = Field(default=False, description='Auto-copy response to clipboard')
-        showUsername: bool = Field(default=False, description='Display username in chat')
-        richTextInput: bool = Field(default=True, description='Rich text input for chat')
-        promptAutocomplete: bool = Field(default=False, description='Prompt autocompletion')
-        largeTextAsFile: bool = Field(default=False, description='Paste large text as a file')
-        copyFormatted: bool = Field(default=False, description='Copy formatted text')
-        collapseCodeBlocks: bool = Field(default=False, description='Collapse code blocks by default')
-        expandDetails: bool = Field(default=False, description='Expand details by default')
-        chatBubble: bool = Field(default=True, description='Chat bubble UI')
-        widescreenMode: bool = Field(default=False, description='Widescreen mode')
-        splitLargeChunks: bool = Field(default=False, description='Split large chunks')
-        scrollOnBranchChange: bool = Field(default=True, description='Scroll on branch change')
-        temporaryChatByDefault: bool = Field(default=False, description='New chats are temporary by default')
-        userLocation: bool = Field(default=False, description='Allow access to user location')
-        showChatTitleInTab: bool = Field(default=True, description='Show chat title in browser tab')
+        showChatTitleInTab: bool = Field(default=True, description='Display chat title in browser tab')
         notificationSound: bool = Field(default=True, description='Notification sound')
         notificationSoundAlways: bool = Field(default=False, description='Always play notification sound')
-        stylizedPdfExport: bool = Field(default=True, description='Stylized PDF export')
-        hapticFeedback: bool = Field(default=False, description='Haptic feedback (mobile)')
-        ctrlEnterToSend: bool = Field(default=False, description='Ctrl+Enter to send')
-        showFloatingActionButtons: bool = Field(default=True, description='Floating action buttons')
-        imageCompression: bool = Field(default=False, description='Compress images before upload')
-        landingPageMode: Literal['', 'chat'] = Field(default='', description="Landing page: '' = default, 'chat' = chat")
+        userLocation: bool = Field(default=False, description='Allow access to user location')
+        hapticFeedback: bool = Field(default=False, description='Haptic feedback (Android)')
+        copyFormatted: bool = Field(default=False, description='Copy formatted text')
+        showUpdateToast: bool = Field(default=True, description='Toast notifications for new updates (admin)')
+        showChangelog: bool = Field(default=True, description="Show \"What's New\" modal on login (admin)")
+
+        # ── Chat ────────────────────────────────────────────────────────────
+        enableMessageQueue: bool = Field(default=True, description='Enable message queue')
         chatDirection: Literal['auto', 'LTR', 'RTL'] = Field(default='auto', description='Chat text direction')
-        textScale: float = Field(default=1.0, description='Text scale (0.5 - 1.5)')
+        landingPageMode: Literal['', 'chat'] = Field(default='', description="Landing page: '' = default, 'chat' = chat")
+        chatBubble: bool = Field(default=True, description='Chat bubble UI')
+        showUsername: bool = Field(default=False, description='Display username instead of You (bubble UI off)')
+        widescreenMode: bool = Field(default=False, description='Widescreen mode')
+        temporaryChatByDefault: bool = Field(default=False, description='New chats are temporary by default')
+        chatFadeStreamingText: bool = Field(default=True, description='Fade effect for streaming text')
+        renderMarkdownInUserMessages: bool = Field(default=True, description='Render markdown in user messages')
+        renderMarkdownInAssistantMessages: bool = Field(default=True, description='Render markdown in assistant messages')
+        titleAutoGenerate: bool = Field(default=True, description='Title auto-generation')
+        autoFollowUps: bool = Field(default=True, description='Follow-up auto-generation')
+        autoTags: bool = Field(default=True, description='Chat tags auto-generation')
+        responseAutoCopy: bool = Field(default=False, description='Auto-copy response to clipboard')
+        insertSuggestionPrompt: bool = Field(default=False, description='Insert suggestion prompt to input')
+        keepFollowUpPrompts: bool = Field(default=False, description='Keep follow-up prompts in chat')
+        insertFollowUpPrompt: bool = Field(default=False, description='Insert follow-up prompt to input')
+        regenerateMenu: bool = Field(default=True, description='Regenerate menu')
+        collapseCodeBlocks: bool = Field(default=False, description='Always collapse code blocks')
+        expandDetails: bool = Field(default=False, description='Always expand details')
+        renderMarkdownInPreviews: bool = Field(default=True, description='Render markdown in previews')
+        displayMultiModelResponsesInTabs: bool = Field(default=False, description='Display multi-model responses in tabs')
+        scrollOnBranchChange: bool = Field(default=True, description='Scroll on branch change')
+        showFilesOnTerminalSelect: bool = Field(default=True, description='Show files on terminal select')
+        stylizedPdfExport: bool = Field(default=True, description='Stylized PDF export')
+        showFloatingActionButtons: bool = Field(default=True, description='Floating quick actions')
+        splitLargeChunks: bool = Field(default=False, description='Split large chunks')
+
+        # ── Input ───────────────────────────────────────────────────────────
+        ctrlEnterToSend: bool = Field(default=False, description='Ctrl+Enter to send (off = Enter to send)')
+        richTextInput: bool = Field(default=True, description='Rich text input for chat')
+        promptAutocomplete: bool = Field(default=False, description='Prompt autocompletion')
+        showFormattingToolbar: bool = Field(default=False, description='Show formatting toolbar (rich text on)')
+        insertPromptAsRichText: bool = Field(default=False, description='Insert prompt as rich text (rich text on)')
+        largeTextAsFile: bool = Field(default=False, description='Paste large text as a file')
+
+        # ── Artifacts ───────────────────────────────────────────────────────
+        detectArtifacts: bool = Field(default=True, description='Detect artifacts automatically')
+        iframeSandboxAllowSameOrigin: bool = Field(default=False, description='iframe sandbox allow same origin')
+        iframeSandboxAllowForms: bool = Field(default=False, description='iframe sandbox allow forms')
+
+        # ── Voice ───────────────────────────────────────────────────────────
+        voiceInterruption: bool = Field(default=False, description='Allow voice interruption in call')
+        showEmojiInCall: bool = Field(default=False, description='Display emoji in call')
+
+        # ── File ────────────────────────────────────────────────────────────
+        imageCompression: bool = Field(default=False, description='Compress images before upload')
+        imageCompressionInChannels: bool = Field(default=True, description='Compress images in channels (compression on)')
+        imageCompressionWidth: str = Field(default='', description='Max image width in px (blank = no limit)')
+        imageCompressionHeight: str = Field(default='', description='Max image height in px (blank = no limit)')
+
         # Reassembled into their real ui shape on apply:
         webSearchAlways: bool = Field(default=False, description="Enable web search by default (maps to webSearch='always')")
 
@@ -75,6 +109,7 @@ class Event:
             ui.pop(key, None)
         ui['title'] = {'auto': ui.pop('titleAutoGenerate', True)}
         ui['webSearch'] = 'always' if ui.pop('webSearchAlways', False) else None
+        ui['imageCompressionSize'] = {'width': ui.pop('imageCompressionWidth', ''), 'height': ui.pop('imageCompressionHeight', '')}
         return ui
 
     async def _all_users(self):
