@@ -1849,8 +1849,7 @@ STREAMING_OBSERVER_SCRIPT = """
   // True when `s` ends with a non-empty prefix of START_MARK (>= '@@@').
   // Lets us hide the marker paragraph while it is still streaming in
   // char-by-char (e.g. "@@@V"), so the raw start marker never flashes
-  // before the full token matches. '@@@' is the reserved sentinel, so
-  // this does not false-positive on ordinary prose.
+  // before the full token matches.
   function endsWithPartialStart(s) {
     for (var k = Math.min(s.length, START_MARK.length); k >= 3; k--) {
       if (START_MARK.substr(0, k) === s.substr(s.length - k)) return true;
@@ -2914,14 +2913,9 @@ return (() => {
             f"the HTML source itself. Emit exactly ONE @@@VIZ-START/@@@VIZ-END pair "
             f"for this tool call."
         )
-        # Deliver the wrapper as a MESSAGE-LEVEL embed (an "embeds" event) so it
-        # renders inline under BOTH native (OWUI >= 0.10) and legacy tool
-        # calling. Under native tool calling the embeds attached to the
-        # per-tool-call result item are not painted by the 0.10.x frontend,
-        # whereas the message-level "embeds" channel is path-independent and
-        # always renders (it is the same channel legacy already uses). Fall back
-        # to the original HTMLResponse return when no event emitter is available
-        # (older Open WebUI / non-emitter contexts) to preserve prior behavior.
+        # Under native tool calling the embeds attached to the per-tool-call result item are not painted by the frontend,
+        # whereas the message-level "embeds" channel is path-independent and always renders (it is the same channel legacy already uses).
+        # Fall back to the original HTMLResponse return when no event emitter is available to preserve prior behavior.
         if __event_emitter__:
             await __event_emitter__(
                 {"type": "embeds", "data": {"embeds": [html]}}
