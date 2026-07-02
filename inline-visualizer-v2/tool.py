@@ -1,7 +1,7 @@
 """
 title: Inline Visualizer
 author: Classic298
-version: 2.2.0
+version: 2.1.3
 required_open_webui_version: 0.9.5
 description: Renders interactive HTML/SVG visualizations inline in chat. Requires "iframe Sandbox Allow Same Origin" to be enabled in Open WebUI Settings -> Interface. For design instructions, the model should call view_skill("visualize").
 """
@@ -13,7 +13,7 @@ from typing import Literal
 # version can be verified at runtime (search DevTools for
 # `data-iv-build` on <html>).  Bump on every protocol-level change
 # so stale cached iframes can be spotted immediately.
-_IV_BUILD = "2.1.0"
+_IV_BUILD = "2.1.1"
 
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
@@ -629,35 +629,35 @@ THEME_DETECTION_SCRIPT = """
     if (document.documentElement.getAttribute('data-theme') === theme) return;
     document.documentElement.setAttribute('data-theme', theme);
     if (window.Chart && Chart.instances) {
-      var s = getComputedStyle(document.documentElement);
-      var tc = s.getPropertyValue('--color-text-secondary').trim();
-      var gc = s.getPropertyValue('--color-border-tertiary').trim();
-      Chart.defaults.color = tc;
-      Chart.defaults.borderColor = gc;
+      var styles = getComputedStyle(document.documentElement);
+      var textColor = styles.getPropertyValue('--color-text-secondary').trim();
+      var gridColor = styles.getPropertyValue('--color-border-tertiary').trim();
+      Chart.defaults.color = textColor;
+      Chart.defaults.borderColor = gridColor;
       Object.values(Chart.instances).forEach(function(chart) {
         Object.values(chart.options.scales || {}).forEach(function(scale) {
-          if (scale.ticks) scale.ticks.color = tc;
-          if (scale.grid) scale.grid.color = gc;
+          if (scale.ticks) scale.ticks.color = textColor;
+          if (scale.grid) scale.grid.color = gridColor;
         });
-        var leg = (chart.options.plugins || {}).legend;
-        if (leg && leg.labels) leg.labels.color = tc;
+        var legend = (chart.options.plugins || {}).legend;
+        if (legend && legend.labels) legend.labels.color = textColor;
         chart.update();
       });
     }
   }
 
   try {
-    var p = parent.document.documentElement;
-    applyTheme(detectTheme(p));
+    var parentRoot = parent.document.documentElement;
+    applyTheme(detectTheme(parentRoot));
     new MutationObserver(function() {
-      applyTheme(detectTheme(p));
-    }).observe(p, { attributes: true, attributeFilter: ['class', 'data-theme', 'style'] });
+      applyTheme(detectTheme(parentRoot));
+    }).observe(parentRoot, { attributes: true, attributeFilter: ['class', 'data-theme', 'style'] });
   } catch(e) {
     // No same-origin access — fall back to OS preference.
-    var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-    if (mq) {
-      applyTheme(mq.matches);
-      mq.addEventListener('change', function(e) { applyTheme(e.matches); });
+    var mediaQuery = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    if (mediaQuery) {
+      applyTheme(mediaQuery.matches);
+      mediaQuery.addEventListener('change', function(e) { applyTheme(e.matches); });
     }
   }
 })();
@@ -675,18 +675,18 @@ var _rh_consecutive = 0;   // consecutive small-growth reports
 var _rh_raf = 0;           // rAF id for debouncing ResizeObserver
 
 function reportHeight() {
-  var b = document.body;
+  var body = document.body;
   // Measure SVG overflow before the body collapse below — getBBox
   // needs normal layout.
   var svgOverflow = 0;
   document.querySelectorAll('svg[viewBox]').forEach(function(svg) {
     try {
       var bbox = svg.getBBox();
-      var vb = svg.viewBox.baseVal;
-      if (vb && vb.width > 0 && vb.height > 0) {
-        var overflow = bbox.y + bbox.height - (vb.y + vb.height);
+      var viewBox = svg.viewBox.baseVal;
+      if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+        var overflow = bbox.y + bbox.height - (viewBox.y + viewBox.height);
         if (overflow > 0) {
-          var scale = svg.getBoundingClientRect().width / vb.width;
+          var scale = svg.getBoundingClientRect().width / viewBox.width;
           svgOverflow += Math.ceil(overflow * scale);
         }
       }
@@ -695,46 +695,46 @@ function reportHeight() {
 
   // Force height:auto on body + direct children — vh in an auto-sized
   // iframe tracks iframe height, creating a feedback loop.
-  var savedBody = b.style.cssText;
-  b.style.setProperty('height', 'auto', 'important');
-  b.style.setProperty('overflow', 'visible', 'important');
-  b.style.setProperty('display', 'block', 'important');
-  var saved = [];
-  Array.from(b.children).forEach(function(el) {
-    if (el.nodeType !== 1) return;
-    saved.push({ el: el, css: el.style.cssText });
-    el.style.setProperty('height', 'auto', 'important');
-    el.style.setProperty('max-height', 'none', 'important');
-    el.style.setProperty('min-height', '0', 'important');
-    el.style.setProperty('overflow', 'visible', 'important');
+  var savedBodyCss = body.style.cssText;
+  body.style.setProperty('height', 'auto', 'important');
+  body.style.setProperty('overflow', 'visible', 'important');
+  body.style.setProperty('display', 'block', 'important');
+  var savedChildren = [];
+  Array.from(body.children).forEach(function(child) {
+    if (child.nodeType !== 1) return;
+    savedChildren.push({ el: child, css: child.style.cssText });
+    child.style.setProperty('height', 'auto', 'important');
+    child.style.setProperty('max-height', 'none', 'important');
+    child.style.setProperty('min-height', '0', 'important');
+    child.style.setProperty('overflow', 'visible', 'important');
   });
 
   // Collapse any descendant with viewport-unit dimensions — 100vh
   // resolves to our own reported height, so leaving it intact
   // creates a feedback loop where body grows each cycle.
-  var savedVh = [];
+  var savedVhUsers = [];
   try {
-    var vhUsers = b.querySelectorAll(
+    var vhUsers = body.querySelectorAll(
       '[style*="vh"], [style*="vw"], [style*="vmin"], [style*="vmax"]'
     );
     for (var k = 0; k < vhUsers.length; k++) {
-      var ve = vhUsers[k];
-      savedVh.push({ el: ve, css: ve.style.cssText });
-      ve.style.setProperty('min-height', '0', 'important');
-      ve.style.setProperty('max-height', 'none', 'important');
-      ve.style.setProperty('height', 'auto', 'important');
+      var vhEl = vhUsers[k];
+      savedVhUsers.push({ el: vhEl, css: vhEl.style.cssText });
+      vhEl.style.setProperty('min-height', '0', 'important');
+      vhEl.style.setProperty('max-height', 'none', 'important');
+      vhEl.style.setProperty('height', 'auto', 'important');
     }
   } catch(e) {}
 
-  var h = b.scrollHeight + svgOverflow;
-  b.style.cssText = savedBody;
-  saved.forEach(function(s) { s.el.style.cssText = s.css; });
-  for (var v = 0; v < savedVh.length; v++) {
-    savedVh[v].el.style.cssText = savedVh[v].css;
+  var pageHeight = body.scrollHeight + svgOverflow;
+  body.style.cssText = savedBodyCss;
+  savedChildren.forEach(function(entry) { entry.el.style.cssText = entry.css; });
+  for (var v = 0; v < savedVhUsers.length; v++) {
+    savedVhUsers[v].el.style.cssText = savedVhUsers[v].css;
   }
 
   // Loop guard: 3+ consecutive small monotonic increases → stop.
-  var delta = h - _rh_last;
+  var delta = pageHeight - _rh_last;
   if (_rh_last > 0 && delta > 0 && delta < 50) {
     _rh_consecutive++;
     if (_rh_consecutive >= 3) return;
@@ -742,8 +742,8 @@ function reportHeight() {
     _rh_consecutive = 0;
   }
 
-  _rh_last = h;
-  parent.postMessage({ type: 'iframe:height', height: h }, '*');
+  _rh_last = pageHeight;
+  parent.postMessage({ type: 'iframe:height', height: pageHeight }, '*');
 }
 window.addEventListener('load', reportHeight);
 window.addEventListener('resize', reportHeight);
@@ -775,9 +775,9 @@ document.addEventListener('click', function() {
 window.addEventListener('load', function() {
   // Chart.js theme defaults + legend overflow prevention
   if (window.Chart) {
-    var s = getComputedStyle(document.documentElement);
-    var textColor = s.getPropertyValue('--color-text-secondary').trim();
-    var gridColor = s.getPropertyValue('--color-border-tertiary').trim();
+    var styles = getComputedStyle(document.documentElement);
+    var textColor = styles.getPropertyValue('--color-text-secondary').trim();
+    var gridColor = styles.getPropertyValue('--color-border-tertiary').trim();
     Chart.defaults.color = textColor;
     Chart.defaults.borderColor = gridColor;
     Chart.defaults.plugins.legend.labels.color = textColor;
@@ -785,11 +785,11 @@ window.addEventListener('load', function() {
     Chart.defaults.plugins.legend.labels.boxWidth = 12;
     Chart.defaults.plugins.legend.labels.font = { size: 11 };
     Object.values(Chart.instances || {}).forEach(function(chart) {
-      var leg = chart.options.plugins && chart.options.plugins.legend;
-      if (leg) {
-        leg.maxHeight = leg.maxHeight || 120;
-        if (leg.labels) {
-          leg.labels.boxWidth = leg.labels.boxWidth || 12;
+      var legend = chart.options.plugins && chart.options.plugins.legend;
+      if (legend) {
+        legend.maxHeight = legend.maxHeight || 120;
+        if (legend.labels) {
+          legend.labels.boxWidth = legend.labels.boxWidth || 12;
         }
       }
       chart.update();
@@ -803,18 +803,18 @@ window.addEventListener('load', function() {
     var texts = Array.from(svg.querySelectorAll('text'));
     if (texts.length < 4) return;
     var items = [];
-    texts.forEach(function(t) {
-      var r = t.getBoundingClientRect();
-      if (r.width < 1) return;
-      items.push({ el: t, rect: r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 });
+    texts.forEach(function(textEl) {
+      var rect = textEl.getBoundingClientRect();
+      if (rect.width < 1) return;
+      items.push({ el: textEl, rect: rect, cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 });
     });
     if (items.length < 4) return;
     // Only touch texts in a narrow y-band (axis labels). Diagrams with
     // texts spread across the canvas are left alone.
     var minY = Infinity, maxY = -Infinity;
-    items.forEach(function(it) {
-      if (it.cy < minY) minY = it.cy;
-      if (it.cy > maxY) maxY = it.cy;
+    items.forEach(function(item) {
+      if (item.cy < minY) minY = item.cy;
+      if (item.cy > maxY) maxY = item.cy;
     });
     var ySpan = maxY - minY;
     if (ySpan < 1) return;
@@ -822,34 +822,34 @@ window.addEventListener('load', function() {
     var bandSize = 30;
     var bestBand = [], bestCount = 0;
     items.forEach(function(anchor) {
-      var band = items.filter(function(it) { return Math.abs(it.cy - anchor.cy) < bandSize; });
+      var band = items.filter(function(item) { return Math.abs(item.cy - anchor.cy) < bandSize; });
       if (band.length > bestCount) { bestCount = band.length; bestBand = band; }
     });
     if (bestBand.length < 3 || bestBand.length === items.length && ySpan > 60) return;
     var groups = [];
-    bestBand.forEach(function(it) {
+    bestBand.forEach(function(item) {
       for (var i = 0; i < groups.length; i++) {
-        if (Math.abs(groups[i].cx - it.cx) < 15) {
-          groups[i].items.push(it);
+        if (Math.abs(groups[i].cx - item.cx) < 15) {
+          groups[i].items.push(item);
           return;
         }
       }
-      groups.push({ cx: it.cx, items: [it] });
+      groups.push({ cx: item.cx, items: [item] });
     });
     if (groups.length < 3) return;
     groups.sort(function(a, b) { return a.cx - b.cx; });
     var needsStagger = false;
     for (var i = 0; i < groups.length - 1; i++) {
-      var maxR = 0, minL = Infinity;
-      groups[i].items.forEach(function(it) { if (it.rect.right > maxR) maxR = it.rect.right; });
-      groups[i+1].items.forEach(function(it) { if (it.rect.left < minL) minL = it.rect.left; });
-      if (maxR > minL - 2) { needsStagger = true; break; }
+      var maxRight = 0, minLeft = Infinity;
+      groups[i].items.forEach(function(item) { if (item.rect.right > maxRight) maxRight = item.rect.right; });
+      groups[i+1].items.forEach(function(item) { if (item.rect.left < minLeft) minLeft = item.rect.left; });
+      if (maxRight > minLeft - 2) { needsStagger = true; break; }
     }
     if (needsStagger) {
       for (var i = 1; i < groups.length; i += 2) {
-        groups[i].items.forEach(function(it) {
-          var cy = parseFloat(it.el.getAttribute('y') || 0);
-          it.el.setAttribute('y', String(cy + 18));
+        groups[i].items.forEach(function(item) {
+          var y = parseFloat(item.el.getAttribute('y') || 0);
+          item.el.setAttribute('y', String(y + 18));
         });
       }
     }
@@ -901,8 +901,8 @@ function toast(msg, kind) {
       'max-width:280px;';
     document.body.appendChild(wrap);
   }
-  var el = document.createElement('div');
-  el.style.cssText =
+  var banner = document.createElement('div');
+  banner.style.cssText =
     'padding:6px 12px;border-radius:var(--radius-md);' +
     'background:var(--color-bg-secondary);' +
     'border:0.5px solid var(--color-border-tertiary);' +
@@ -911,16 +911,16 @@ function toast(msg, kind) {
     'opacity:0;transform:translateY(-4px);transition:all 0.2s ease;' +
     'pointer-events:auto;white-space:nowrap;' +
     'overflow:hidden;text-overflow:ellipsis;';
-  el.textContent = String(msg == null ? '' : msg);
-  wrap.appendChild(el);
+  banner.textContent = String(msg == null ? '' : msg);
+  wrap.appendChild(banner);
   requestAnimationFrame(function() {
-    el.style.opacity = '1';
-    el.style.transform = 'none';
+    banner.style.opacity = '1';
+    banner.style.transform = 'none';
   });
   setTimeout(function() {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(-4px)';
-    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    banner.style.opacity = '0';
+    banner.style.transform = 'translateY(-4px)';
+    setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 220);
   }, 2200);
 }
 
@@ -930,31 +930,31 @@ function toast(msg, kind) {
 // execCommand can silently fail and swallowing feedback leaves the user
 // confused. silent=true suppresses the toast.
 function copyText(text, silent) {
-  var s = String(text == null ? '' : text);
+  var value = String(text == null ? '' : text);
   var label = (typeof _ivCopiedStr !== 'undefined' &&
                (_ivCopiedStr[_ivLang] || _ivCopiedStr.en)) || 'Copied';
   function fire() { if (!silent) try { toast(label, 'success'); } catch(e) {} }
 
   function legacy() {
     try {
-      var ta = document.createElement('textarea');
-      ta.value = s;
-      ta.setAttribute('readonly', '');
-      ta.style.cssText =
+      var textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.cssText =
         'position:fixed;left:-9999px;top:-9999px;opacity:0;';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      try { ta.setSelectionRange(0, s.length); } catch(e) {}
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try { textarea.setSelectionRange(0, value.length); } catch(e) {}
       try { document.execCommand('copy'); } catch(e) {}
-      ta.remove();
+      textarea.remove();
     } catch(e) {}
     fire();
   }
 
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(s).then(fire, legacy);
+      navigator.clipboard.writeText(value).then(fire, legacy);
       return;
     }
   } catch(e) {}
@@ -967,9 +967,9 @@ function copyText(text, silent) {
 // Silent no-op if localStorage / parent is unreachable.
 function _ivStatePrefix() {
   try {
-    var f = window.frameElement;
-    var msg = f && f.closest && f.closest('[id^="message-"]');
-    return 'iv-state:' + ((msg && msg.id) || 'global') + ':';
+    var frame = window.frameElement;
+    var msgEl = frame && frame.closest && frame.closest('[id^="message-"]');
+    return 'iv-state:' + ((msgEl && msgEl.id) || 'global') + ':';
   } catch(e) { return 'iv-state:global:'; }
 }
 function saveState(key, value) {
@@ -982,9 +982,9 @@ function saveState(key, value) {
 }
 function loadState(key, fallback) {
   try {
-    var v = parent.localStorage.getItem(_ivStatePrefix() + String(key));
-    if (v == null) return fallback === undefined ? null : fallback;
-    return JSON.parse(v);
+    var stored = parent.localStorage.getItem(_ivStatePrefix() + String(key));
+    if (stored == null) return fallback === undefined ? null : fallback;
+    return JSON.parse(stored);
   } catch(e) { return fallback === undefined ? null : fallback; }
 }
 
@@ -996,16 +996,16 @@ function loadState(key, fallback) {
 // styles before print, restore after.
 (function() {
   window.addEventListener('beforeprint', function() {
-    document.querySelectorAll('canvas').forEach(function(c) {
-      c.setAttribute('data-print-style', c.style.cssText);
-      c.style.setProperty('width', '100%', 'important');
-      c.style.setProperty('max-width', '100%', 'important');
-      c.style.setProperty('height', 'auto', 'important');
-      var p = c.parentElement;
-      if (p) {
-        p.setAttribute('data-print-style', p.style.cssText);
-        p.style.setProperty('width', '100%', 'important');
-        p.style.setProperty('max-width', '100%', 'important');
+    document.querySelectorAll('canvas').forEach(function(canvas) {
+      canvas.setAttribute('data-print-style', canvas.style.cssText);
+      canvas.style.setProperty('width', '100%', 'important');
+      canvas.style.setProperty('max-width', '100%', 'important');
+      canvas.style.setProperty('height', 'auto', 'important');
+      var parentEl = canvas.parentElement;
+      if (parentEl) {
+        parentEl.setAttribute('data-print-style', parentEl.style.cssText);
+        parentEl.style.setProperty('width', '100%', 'important');
+        parentEl.style.setProperty('max-width', '100%', 'important');
       }
     });
   });
@@ -1317,21 +1317,21 @@ var _ivErrBodyStr = {
     if (pre && _ivStr[pre]) return pre;
     // 2. Fallback: parent localStorage (needs same-origin)
     try {
-      var s = parent.localStorage.getItem('locale')
+      var stored = parent.localStorage.getItem('locale')
            || parent.localStorage.getItem('language')
            || parent.localStorage.getItem('i18nextLng');
-      if (s) { var l = s.split('-')[0].toLowerCase(); if (_ivStr[l]) return l; }
+      if (stored) { var primary = stored.split('-')[0].toLowerCase(); if (_ivStr[primary]) return primary; }
     } catch(e) {}
     // 3. Fallback: browser language (standalone HTML / no same-origin)
     try {
-      var bl = (navigator.language || navigator.userLanguage || 'en').split('-')[0].toLowerCase();
-      if (_ivStr[bl]) return bl;
+      var browserLang = (navigator.language || navigator.userLanguage || 'en').split('-')[0].toLowerCase();
+      if (_ivStr[browserLang]) return browserLang;
     } catch(e) {}
     return 'en';
   }
   _ivLang = detectLang();
-  var btn = document.getElementById('iv-dl-btn');
-  if (btn) btn.title = _ivStr[_ivLang] || _ivStr.en;
+  var downloadBtn = document.getElementById('iv-dl-btn');
+  if (downloadBtn) downloadBtn.title = _ivStr[_ivLang] || _ivStr.en;
   // Swap the server-baked English loader label for the detected locale.
   var loadLabel = document.querySelector('.iv-loading-label');
   if (loadLabel) loadLabel.textContent = _ivLoadStr[_ivLang] || _ivLoadStr.en;
@@ -1645,8 +1645,8 @@ function _ivDownloadPNG() {
 
 function _ivDownload() {
   // Strip download button + overflow:hidden for standalone use.
-  var w = document.getElementById('iv-dl-wrap');
-  if (w) w.remove();
+  var dlWrap = document.getElementById('iv-dl-wrap');
+  if (dlWrap) dlWrap.remove();
 
   // Serialize from a clone so we can relocate model-imported scripts
   // without mutating the live iframe. enqueueScript appended each
@@ -1660,20 +1660,20 @@ function _ivDownload() {
   var bodyClone = docClone.querySelector('body');
   if (headClone && bodyClone) {
     var imported = headClone.querySelectorAll('script[data-iv-imported="1"]');
-    for (var ii = 0; ii < imported.length; ii++) {
-      bodyClone.appendChild(imported[ii]);
+    for (var i = 0; i < imported.length; i++) {
+      bodyClone.appendChild(imported[i]);
     }
   }
   var html = '<!DOCTYPE html>\\n' + docClone.outerHTML;
 
-  if (w) document.body.appendChild(w);
+  if (dlWrap) document.body.appendChild(dlWrap);
   html = html.replace('html, body { overflow: hidden; }', '');
 
-  var fname = (document.title || 'visualization').replace(/[<>:"\\/|?*]+/g, '-').replace(/\s+/g, ' ').trim();
-  if (!fname) fname = 'visualization';
+  var fileName = (document.title || 'visualization').replace(/[<>:"\\/|?*]+/g, '-').replace(/\s+/g, ' ').trim();
+  if (!fileName) fileName = 'visualization';
   // Cap at 200 chars to stay under the Windows 255-char filename limit.
-  if (fname.length > 200) fname = fname.substring(0, 200).trim();
-  fname += '.html';
+  if (fileName.length > 200) fileName = fileName.substring(0, 200).trim();
+  fileName += '.html';
 
   var blob = new Blob([html], {type: 'text/html;charset=utf-8'});
   var url = URL.createObjectURL(blob);
@@ -1686,41 +1686,41 @@ function _ivDownload() {
         if (typeof msg === 'string' && msg.indexOf('Load failed') !== -1) return true;
         if (_origOnerror) return _origOnerror.apply(this, arguments);
       };
-      var _sup = function(ev) {
-        var m = ev && (ev.message || (ev.reason && ev.reason.message) || '');
-        if (m.indexOf('Load failed') !== -1) { ev.preventDefault(); ev.stopImmediatePropagation(); return true; }
+      var suppressLoadError = function(ev) {
+        var message = ev && (ev.message || (ev.reason && ev.reason.message) || '');
+        if (message.indexOf('Load failed') !== -1) { ev.preventDefault(); ev.stopImmediatePropagation(); return true; }
       };
-      window.addEventListener('error', _sup, true);
-      window.addEventListener('unhandledrejection', _sup, true);
+      window.addEventListener('error', suppressLoadError, true);
+      window.addEventListener('unhandledrejection', suppressLoadError, true);
 
-      var a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = fname;
+      var link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = fileName;
       // No target="_blank" on iOS — strands PWA users on a blob page.
-      document.body.appendChild(a);
-      a.click();
+      document.body.appendChild(link);
+      link.click();
 
       // Restore original handlers after 60s.
       setTimeout(function() {
         window.onerror = _origOnerror;
-        window.removeEventListener('error', _sup, true);
-        window.removeEventListener('unhandledrejection', _sup, true);
+        window.removeEventListener('error', suppressLoadError, true);
+        window.removeEventListener('unhandledrejection', suppressLoadError, true);
         URL.revokeObjectURL(url);
-        a.remove();
+        link.remove();
       }, 60000);
     }, 0);
   } else {
     // Desktop / Android — straightforward blob download.
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = fname;
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
     // Safety net: new tab if the iframe sandbox blocks downloads.
-    a.target = '_blank';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() { a.remove(); URL.revokeObjectURL(url); }, 60000);
+    link.target = '_blank';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function() { link.remove(); URL.revokeObjectURL(url); }, 60000);
   }
 }
 </script>
@@ -1747,9 +1747,9 @@ CHIME_SCRIPT = """
 var _ivAudioCtx = null;
 function playDoneSound() {
   try {
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    if (!_ivAudioCtx) _ivAudioCtx = new AC();
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!_ivAudioCtx) _ivAudioCtx = new AudioCtx();
     var ctx = _ivAudioCtx;
     if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e) {} }
     var now = ctx.currentTime;
@@ -1760,13 +1760,13 @@ function playDoneSound() {
       osc.type = 'sine';
       osc.frequency.value = freq;
       var start = now + i * 0.09;
-      var dur = 0.35;
+      var duration = 0.35;
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(0.16, start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
       osc.connect(gain).connect(ctx.destination);
       osc.start(start);
-      osc.stop(start + dur + 0.02);
+      osc.stop(start + duration + 0.02);
     });
   } catch(e) {}
 }
@@ -1786,7 +1786,7 @@ STRICT_SECURITY_SCRIPT = """
 <script>
 (function() {
   function stripParams(rawUrl) {
-    try { var u = new URL(rawUrl, location.href); u.search = ''; return u.toString(); }
+    try { var parsed = new URL(rawUrl, location.href); parsed.search = ''; return parsed.toString(); }
     catch(e) { return rawUrl; }
   }
 
@@ -1805,14 +1805,14 @@ STRICT_SECURITY_SCRIPT = """
 
   // Strip params from all existing and future <a> tags
   function sanitizeLinks(root) {
-    (root.querySelectorAll ? root : document).querySelectorAll('a[href]').forEach(function(a) {
-      a.href = stripParams(a.href);
+    (root.querySelectorAll ? root : document).querySelectorAll('a[href]').forEach(function(anchor) {
+      anchor.href = stripParams(anchor.href);
     });
   }
   sanitizeLinks(document);
-  new MutationObserver(function(muts) {
-    muts.forEach(function(m) {
-      m.addedNodes.forEach(function(n) { if (n.nodeType === 1) sanitizeLinks(n); });
+  new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) { if (node.nodeType === 1) sanitizeLinks(node); });
     });
   }).observe(document.body, { childList: true, subtree: true });
 })();
@@ -1859,19 +1859,19 @@ STREAMING_OBSERVER_SCRIPT = """
   // breaks Svelte's tracked refs, but blanked nodes still need to
   // surface the marker substring to the state machine.
   var _ivOriginalText = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
-  function getEffectiveText(tn) {
-    if (!tn) return '';
-    var v = tn.nodeValue || '';
-    if (v === '' && _ivOriginalText && _ivOriginalText.has(tn)) {
-      return _ivOriginalText.get(tn) || '';
+  function getEffectiveText(textNode) {
+    if (!textNode) return '';
+    var value = textNode.nodeValue || '';
+    if (value === '' && _ivOriginalText && _ivOriginalText.has(textNode)) {
+      return _ivOriginalText.get(textNode) || '';
     }
-    return v;
+    return value;
   }
-  function blankPreserving(tn) {
-    var current = tn.nodeValue || '';
+  function blankPreserving(textNode) {
+    var current = textNode.nodeValue || '';
     if (current === '') return;  // already blanked, idempotent no-op
-    if (_ivOriginalText) _ivOriginalText.set(tn, current);
-    try { tn.nodeValue = ''; } catch(e) {}
+    if (_ivOriginalText) _ivOriginalText.set(textNode, current);
+    try { textNode.nodeValue = ''; } catch(e) {}
   }
   // `+?` (not `*?`): require ≥1 body char so a freshly emitted
   // @@@VIZ-START with no content yet doesn't match an empty capture
@@ -1895,26 +1895,26 @@ STREAMING_OBSERVER_SCRIPT = """
     while (i < text.length) {
       var open = text.indexOf('<details', i);
       if (open === -1) { out += text.slice(i); break; }
-      var gt = text.indexOf('>', open);
-      if (gt === -1) {
+      var tagEnd = text.indexOf('>', open);
+      if (tagEnd === -1) {
         // Opening tag still streaming (large embeds payload). Drop the
         // remainder if it is already a stripped type, else keep it.
         out += stripRe.test(text.slice(open)) ? text.slice(i, open) : text.slice(i);
         break;
       }
-      if (!stripRe.test(text.slice(open, gt + 1))) {
-        out += text.slice(i, gt + 1);  // kept type (reasoning, lax pass)
-        i = gt + 1;
+      if (!stripRe.test(text.slice(open, tagEnd + 1))) {
+        out += text.slice(i, tagEnd + 1);  // kept type (reasoning, lax pass)
+        i = tagEnd + 1;
         continue;
       }
       out += text.slice(i, open);  // text before the stripped block
-      var depth = 1, j = gt + 1;
+      var depth = 1, j = tagEnd + 1;
       while (j < text.length && depth > 0) {
-        var no = text.indexOf('<details', j);
-        var nc = text.indexOf('</details>', j);
-        if (nc === -1) { j = text.length; break; }  // not closed, strip to end
-        if (no !== -1 && no < nc) { depth++; j = no + 8; }
-        else { depth--; j = nc + 10; }
+        var nextOpen = text.indexOf('<details', j);
+        var nextClose = text.indexOf('</details>', j);
+        if (nextClose === -1) { j = text.length; break; }  // not closed, strip to end
+        if (nextOpen !== -1 && nextOpen < nextClose) { depth++; j = nextOpen + 8; }
+        else { depth--; j = nextClose + 10; }
       }
       i = j;
     }
@@ -1925,8 +1925,8 @@ STREAMING_OBSERVER_SCRIPT = """
   // open tag. Text-only decoys (this script's regex source, or the
   // skill example whose brackets are entity-escaped) do not, so we
   // refuse to finalise on them and keep scanning for the real block.
-  function _ivLooksRenderable(s) {
-    return /<[a-zA-Z]/.test(s || '');
+  function _ivLooksRenderable(html) {
+    return /<[a-zA-Z]/.test(html || '');
   }
 
   var renderArea = document.getElementById('iv-render');
@@ -1939,23 +1939,23 @@ STREAMING_OBSERVER_SCRIPT = """
     // _ivLang / _ivErrTitleStr / _ivErrBodyStr come from BODY_SCRIPTS
     // which runs before this observer script.
     var _lang = (typeof _ivLang !== 'undefined' && _ivLang) || 'en';
-    var _t = (typeof _ivErrTitleStr !== 'undefined' &&
+    var errTitle = (typeof _ivErrTitleStr !== 'undefined' &&
               (_ivErrTitleStr[_lang] || _ivErrTitleStr.en)) ||
              'Streaming visualization unavailable';
-    var _b = (typeof _ivErrBodyStr !== 'undefined' &&
+    var errBody = (typeof _ivErrBodyStr !== 'undefined' &&
               (_ivErrBodyStr[_lang] || _ivErrBodyStr.en)) ||
              'Open User Settings \u2192 Interface, scroll down, and enable ' +
              '"Allow iframe same origin" to use streaming mode.';
-    function _esc(s) {
-      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    function _esc(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
                       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
     renderArea.innerHTML =
       '<div style="padding:16px 18px;border:0.5px solid var(--color-border-tertiary);' +
       'border-radius:var(--radius-md);background:var(--color-bg-secondary);' +
       'color:var(--color-text-primary);font-size:13px;line-height:1.5;">' +
-      '<div style="font-weight:500;margin-bottom:6px;">' + _esc(_t) + '</div>' +
-      '<div style="color:var(--color-text-secondary);">' + _esc(_b) + '</div></div>';
+      '<div style="font-weight:500;margin-bottom:6px;">' + _esc(errTitle) + '</div>' +
+      '<div style="color:var(--color-text-secondary);">' + _esc(errBody) + '</div></div>';
     return;
   }
 
@@ -1972,15 +1972,15 @@ STREAMING_OBSERVER_SCRIPT = """
   function findMyMessage() {
     if (myMessage && parent.document.contains(myMessage)) return myMessage;
     try {
-      var f = window.frameElement;
-      if (!f) return null;
+      var frame = window.frameElement;
+      if (!frame) return null;
       // chat-assistant wrapper holds both streaming-time buffer and
       // settled content; response-content-container only populates on
       // rehydrate. Toolbar / suggestions row are siblings, not
       // descendants, so we won't scoop them up.
-      myMessage = (f.closest && f.closest('.chat-assistant'))
-        || (f.closest && f.closest('#response-content-container'))
-        || (f.closest && f.closest('[id^="message-"]'))
+      myMessage = (frame.closest && frame.closest('.chat-assistant'))
+        || (frame.closest && frame.closest('#response-content-container'))
+        || (frame.closest && frame.closest('[id^="message-"]'))
         || null;
       return myMessage;
     } catch(e) { return null; }
@@ -1989,20 +1989,20 @@ STREAMING_OBSERVER_SCRIPT = """
   function determineIndex() {
     if (myIndex !== null) return myIndex;
     try {
-      var f = window.frameElement;
-      if (!f) return null;
-      var embedContainer = f.closest && f.closest('[id*="-embeds-"]');
+      var frame = window.frameElement;
+      if (!frame) return null;
+      var embedContainer = frame.closest && frame.closest('[id*="-embeds-"]');
       if (embedContainer) {
-        var m = embedContainer.id.match(/-embeds-(\\d+)$/);
-        if (m) { myIndex = parseInt(m[1], 10); return myIndex; }
+        var match = embedContainer.id.match(/-embeds-(\\d+)$/);
+        if (match) { myIndex = parseInt(match[1], 10); return myIndex; }
       }
       // Fallback: count preceding sibling iframes within the same message.
       var msg = findMyMessage();
       if (msg) {
         var iframes = msg.querySelectorAll('iframe');
-        for (var i = 0, n = 0; i < iframes.length; i++) {
-          if (iframes[i] === f) { myIndex = n; return myIndex; }
-          n++;
+        for (var i = 0, count = 0; i < iframes.length; i++) {
+          if (iframes[i] === frame) { myIndex = count; return myIndex; }
+          count++;
         }
       }
     } catch(e) {}
@@ -2024,23 +2024,23 @@ STREAMING_OBSERVER_SCRIPT = """
     try {
       var walker = parent.document.createTreeWalker(
         msg, NodeFilter.SHOW_TEXT, {
-          acceptNode: function(n) {
-            var p = n.parentNode;
-            while (p && p !== msg) {
-              if (p.nodeType === 1) {
-                if (p.tagName === 'DETAILS') {
-                  var t = p.getAttribute && p.getAttribute('type');
-                  if (t === 'tool_calls' ||
-                      t === 'code_execution' || t === 'code_interpreter') {
+          acceptNode: function(node) {
+            var ancestor = node.parentNode;
+            while (ancestor && ancestor !== msg) {
+              if (ancestor.nodeType === 1) {
+                if (ancestor.tagName === 'DETAILS') {
+                  var detailsType = ancestor.getAttribute && ancestor.getAttribute('type');
+                  if (detailsType === 'tool_calls' ||
+                      detailsType === 'code_execution' || detailsType === 'code_interpreter') {
                     return NodeFilter.FILTER_REJECT;
                   }
-                  if (skipReasoning && t === 'reasoning') {
+                  if (skipReasoning && detailsType === 'reasoning') {
                     return NodeFilter.FILTER_REJECT;
                   }
                 }
-                var pid = p.id || '';
-                if (pid && pid.indexOf('-detail-group') !== -1) {
-                  if (pid.indexOf('tool') !== -1 || pid.indexOf('code') !== -1) {
+                var ancestorId = ancestor.id || '';
+                if (ancestorId && ancestorId.indexOf('-detail-group') !== -1) {
+                  if (ancestorId.indexOf('tool') !== -1 || ancestorId.indexOf('code') !== -1) {
                     return NodeFilter.FILTER_REJECT;
                   }
                   if (skipReasoning) {
@@ -2048,14 +2048,14 @@ STREAMING_OBSERVER_SCRIPT = """
                   }
                 }
               }
-              p = p.parentNode;
+              ancestor = ancestor.parentNode;
             }
             return NodeFilter.FILTER_ACCEPT;
           }
         }
       );
-      var t;
-      while ((t = walker.nextNode())) out += getEffectiveText(t);
+      var textNode;
+      while ((textNode = walker.nextNode())) out += getEffectiveText(textNode);
     } catch(e) { return _ivStripDetailRanges(msg.textContent || '', skipReasoning); }
     return _ivStripDetailRanges(out, skipReasoning);
   }
@@ -2063,11 +2063,11 @@ STREAMING_OBSERVER_SCRIPT = """
   // Returns the regex match object for the idx-th block in `text`, or null.
   function _ivMatchBlock(text, idx) {
     BLOCK_RE.lastIndex = 0;
-    var m, n = 0;
-    while ((m = BLOCK_RE.exec(text)) !== null) {
-      if (n === idx) return m;
-      n++;
-      if (m.index === BLOCK_RE.lastIndex) BLOCK_RE.lastIndex++;
+    var match, count = 0;
+    while ((match = BLOCK_RE.exec(text)) !== null) {
+      if (count === idx) return match;
+      count++;
+      if (match.index === BLOCK_RE.lastIndex) BLOCK_RE.lastIndex++;
     }
     return null;
   }
@@ -2089,8 +2089,8 @@ STREAMING_OBSERVER_SCRIPT = """
   function readSource() {
     var idx = determineIndex();
     if (idx === null) idx = 0;
-    var m = _ivResolveBlock(idx);
-    return m ? m[1] : null;
+    var match = _ivResolveBlock(idx);
+    return match ? match[1] : null;
   }
 
   // Hide markers + between-marker content. Single-pass walker with
@@ -2106,19 +2106,19 @@ STREAMING_OBSERVER_SCRIPT = """
   }
 
   function wrapAndHideText(textNode) {
-    var parent = textNode.parentNode;
-    if (!parent) return;
-    if (parent.nodeType === 1 &&
-        parent.getAttribute &&
-        parent.getAttribute('data-iv-chat-wrap') === '1') return;
+    var parentEl = textNode.parentNode;
+    if (!parentEl) return;
+    if (parentEl.nodeType === 1 &&
+        parentEl.getAttribute &&
+        parentEl.getAttribute('data-iv-chat-wrap') === '1') return;
     try {
-      var doc = parent.ownerDocument || document;
-      var wrap = doc.createElement('span');
-      wrap.setAttribute('data-iv-chat-wrap', '1');
-      wrap.setAttribute('data-iv-chat-hidden', '1');
-      wrap.style.setProperty('display', 'none', 'important');
-      parent.insertBefore(wrap, textNode);
-      wrap.appendChild(textNode);
+      var ownerDoc = parentEl.ownerDocument || document;
+      var wrapper = ownerDoc.createElement('span');
+      wrapper.setAttribute('data-iv-chat-wrap', '1');
+      wrapper.setAttribute('data-iv-chat-hidden', '1');
+      wrapper.style.setProperty('display', 'none', 'important');
+      parentEl.insertBefore(wrapper, textNode);
+      wrapper.appendChild(textNode);
     } catch(e) {}
   }
 
@@ -2136,6 +2136,17 @@ STREAMING_OBSERVER_SCRIPT = """
       cur = cur.parentNode;
     }
     return null;
+  }
+
+  // True when `s` ends with a non-empty prefix of START_MARK (>= '@@@').
+  // Lets us hide the marker paragraph while it is still streaming in
+  // char-by-char (e.g. "@@@V"), so the raw start marker never flashes
+  // before the full token matches.
+  function endsWithPartialStart(text) {
+    for (var k = Math.min(text.length, START_MARK.length); k >= 3; k--) {
+      if (START_MARK.substr(0, k) === text.substr(text.length - k)) return true;
+    }
+    return false;
   }
 
   // allowWrap=false during streaming (wrapping a text node breaks
@@ -2159,25 +2170,25 @@ STREAMING_OBSERVER_SCRIPT = """
     try {
       walker = parent.document.createTreeWalker(
         msg, NodeFilter.SHOW_TEXT, {
-          acceptNode: function(n) {
-            var p = n.parentNode;
-            while (p && p !== msg) {
-              if (p.nodeType === 1) {
-                if (p.tagName === 'DETAILS') {
-                  var t = p.getAttribute && p.getAttribute('type');
-                  if (t === 'tool_calls' ||
-                      t === 'code_execution' || t === 'code_interpreter') {
+          acceptNode: function(node) {
+            var ancestor = node.parentNode;
+            while (ancestor && ancestor !== msg) {
+              if (ancestor.nodeType === 1) {
+                if (ancestor.tagName === 'DETAILS') {
+                  var detailsType = ancestor.getAttribute && ancestor.getAttribute('type');
+                  if (detailsType === 'tool_calls' ||
+                      detailsType === 'code_execution' || detailsType === 'code_interpreter') {
                     return NodeFilter.FILTER_REJECT;
                   }
                 }
-                var pid = p.id || '';
-                if (pid && pid.indexOf('-detail-group') !== -1 &&
-                    (pid.indexOf('tool') !== -1 ||
-                     pid.indexOf('code') !== -1)) {
+                var ancestorId = ancestor.id || '';
+                if (ancestorId && ancestorId.indexOf('-detail-group') !== -1 &&
+                    (ancestorId.indexOf('tool') !== -1 ||
+                     ancestorId.indexOf('code') !== -1)) {
                   return NodeFilter.FILTER_REJECT;
                 }
               }
-              p = p.parentNode;
+              ancestor = ancestor.parentNode;
             }
             return NodeFilter.FILTER_ACCEPT;
           }
@@ -2186,31 +2197,33 @@ STREAMING_OBSERVER_SCRIPT = """
     } catch(e) { return; }
 
     var inside = false;
-    var tn;
+    var textNode;
     var toHideEls = [];
     var toBlankText = [];
 
-    while ((tn = walker.nextNode())) {
-      if (embedsRoot && embedsRoot.contains(tn)) continue;
-      if (myEmbedContainer && myEmbedContainer.contains(tn)) continue;
+    while ((textNode = walker.nextNode())) {
+      if (embedsRoot && embedsRoot.contains(textNode)) continue;
+      if (myEmbedContainer && myEmbedContainer.contains(textNode)) continue;
 
       // getEffectiveText surfaces the original (pre-blank) text so
       // blanked nodes still match.
-      var tv = getEffectiveText(tn);
-      var hadStartLocal = tv.indexOf(START_MARK) !== -1;
-      var hadEndLocal = tv.indexOf(END_MARK) !== -1;
+      var text = getEffectiveText(textNode);
+      var hadStartLocal = text.indexOf(START_MARK) !== -1;
+      var hadEndLocal = text.indexOf(END_MARK) !== -1;
 
-      var hideThis = inside || hadStartLocal || hadEndLocal;
+      var hadPartialStart = !hadStartLocal && !hadEndLocal && endsWithPartialStart(text);
+
+      var hideThis = inside || hadStartLocal || hadEndLocal || hadPartialStart;
 
       if (hideThis) {
-        var block = nearestBlockAncestor(tn.parentNode, msg);
+        var block = nearestBlockAncestor(textNode.parentNode, msg);
         if (block && block !== msg && !block.contains(myFrame)) {
           // Clean block ancestor — hide wholesale, no text touched.
           toHideEls.push(block);
         } else {
           // Block contains our iframe — can't hide the block. Blank
           // in place: nodeValue = '' preserves Svelte's ref identity.
-          toBlankText.push(tn);
+          toBlankText.push(textNode);
         }
       }
 
@@ -2230,7 +2243,7 @@ STREAMING_OBSERVER_SCRIPT = """
       // has stopped streaming chunks).
       for (var j = 0; j < toBlankText.length; j++) wrapAndHideText(toBlankText[j]);
     } else {
-      for (var b = 0; b < toBlankText.length; b++) blankPreserving(toBlankText[b]);
+      for (var k = 0; k < toBlankText.length; k++) blankPreserving(toBlankText[k]);
     }
   }
 
@@ -2313,9 +2326,9 @@ STREAMING_OBSERVER_SCRIPT = """
           selfClosing = true; i++; continue;
         }
         if (ch === 62 /* > */) {
-          var tn = tagNameBuf.toLowerCase();
-          if (!inClosingTag && !selfClosing && RAW_TAGS[tn]) {
-            state = 'RAW'; rawTag = tn; i++; continue;
+          var tagName = tagNameBuf.toLowerCase();
+          if (!inClosingTag && !selfClosing && RAW_TAGS[tagName]) {
+            state = 'RAW'; rawTag = tagName; i++; continue;
           }
           state = 'TEXT'; i++;
           safeCut = i;
@@ -2330,9 +2343,9 @@ STREAMING_OBSERVER_SCRIPT = """
 
       if (state === 'ATTR_NAME') {
         if (ch === 62) {
-          var tn2 = tagNameBuf.toLowerCase();
-          if (!inClosingTag && !selfClosing && RAW_TAGS[tn2]) {
-            state = 'RAW'; rawTag = tn2; i++; continue;
+          var tagName = tagNameBuf.toLowerCase();
+          if (!inClosingTag && !selfClosing && RAW_TAGS[tagName]) {
+            state = 'RAW'; rawTag = tagName; i++; continue;
           }
           state = 'TEXT'; i++;
           safeCut = i;
@@ -2377,13 +2390,13 @@ STREAMING_OBSERVER_SCRIPT = """
 
   // FNV-1a content hash, used to dedupe script bodies across
   // reconciler branches that may re-encounter the same node.
-  function _ivHashScript(s) {
-    var h = 2166136261;
-    for (var i = 0; i < s.length; i++) {
-      h = (h ^ s.charCodeAt(i)) >>> 0;
-      h = Math.imul(h, 16777619) >>> 0;
+  function _ivHashScript(str) {
+    var hash = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      hash = (hash ^ str.charCodeAt(i)) >>> 0;
+      hash = Math.imul(hash, 16777619) >>> 0;
     }
-    return h.toString(36);
+    return hash.toString(36);
   }
 
   function enqueueScript(incoming) {
@@ -2409,28 +2422,28 @@ STREAMING_OBSERVER_SCRIPT = """
       _ivScriptChain = _ivScriptChain.then(function() {
         return new Promise(function(resolve) {
           try {
-            var el = document.createElement('script');
+            var scriptEl = document.createElement('script');
             attrs.forEach(function(pair) {
-              try { el.setAttribute(pair[0], pair[1]); } catch(_){}
+              try { scriptEl.setAttribute(pair[0], pair[1]); } catch(_){}
             });
             // Tag for HTML export: _ivDownload moves these to end of body
             // so they execute after the model's canvases / DOM nodes exist.
-            el.setAttribute('data-iv-imported', '1');
-            el.onload = el.onerror = function() { resolve(); };
-            document.head.appendChild(el);
+            scriptEl.setAttribute('data-iv-imported', '1');
+            scriptEl.onload = scriptEl.onerror = function() { resolve(); };
+            document.head.appendChild(scriptEl);
           } catch(e) { resolve(); }
         });
       }).catch(function() {});
     } else {
       _ivScriptChain = _ivScriptChain.then(function() {
         try {
-          var el = document.createElement('script');
+          var scriptEl = document.createElement('script');
           attrs.forEach(function(pair) {
-            try { el.setAttribute(pair[0], pair[1]); } catch(_){}
+            try { scriptEl.setAttribute(pair[0], pair[1]); } catch(_){}
           });
-          el.setAttribute('data-iv-imported', '1');
-          el.textContent = code;
-          document.head.appendChild(el);
+          scriptEl.setAttribute('data-iv-imported', '1');
+          scriptEl.textContent = code;
+          document.head.appendChild(scriptEl);
         } catch(e) {}
       }).catch(function() {});
     }
@@ -2439,19 +2452,19 @@ STREAMING_OBSERVER_SCRIPT = """
   // importNode preserves SVG namespaces. Scripts go through
   // enqueueScript for source-order execution.
   function importAndAppend(parent, incoming) {
-    var nt = incoming.nodeType;
-    if (nt === 3) {
+    var nodeType = incoming.nodeType;
+    if (nodeType === 3) {
       parent.appendChild(document.createTextNode(incoming.textContent));
       return;
     }
-    if (nt === 8) {
+    if (nodeType === 8) {
       parent.appendChild(document.createComment(incoming.textContent));
       return;
     }
-    if (nt !== 1) return;
-    var tag = incoming.nodeName;
+    if (nodeType !== 1) return;
+    var tagName = incoming.nodeName;
     var el;
-    if (tag === 'SCRIPT' || tag === 'script') {
+    if (tagName === 'SCRIPT' || tagName === 'script') {
       enqueueScript(incoming);
       return;
     }
@@ -2464,41 +2477,41 @@ STREAMING_OBSERVER_SCRIPT = """
   }
 
   function reconcile(existing, incoming) {
-    var existCh = existing.childNodes;
-    var incCh = incoming.childNodes;
+    var existingChildren = existing.childNodes;
+    var incomingChildren = incoming.childNodes;
     // Source declares this element as a leaf (no children); any children
     // in the live DOM came from user scripts that target this element by
     // id (d3.select(...).append('svg'), new vis.Network(container, ...),
     // ECharts/Plotly/Vega painting into their target div, etc.). Trimming
     // them would erase the chart, so leave the leaf alone.
-    if (incCh.length === 0) return;
+    if (incomingChildren.length === 0) return;
     var i;
-    for (i = 0; i < incCh.length; i++) {
-      var inc = incCh[i];
-      var exist = existCh[i];
-      if (!exist) {
-        importAndAppend(existing, inc);
+    for (i = 0; i < incomingChildren.length; i++) {
+      var incomingChild = incomingChildren[i];
+      var existingChild = existingChildren[i];
+      if (!existingChild) {
+        importAndAppend(existing, incomingChild);
         continue;
       }
       // Position mismatch — rare with append-only, but guard.
-      if (exist.nodeType !== inc.nodeType ||
-          (exist.nodeType === 1 && exist.nodeName !== inc.nodeName)) {
-        existing.removeChild(exist);
-        var next = existCh[i] || null;
+      if (existingChild.nodeType !== incomingChild.nodeType ||
+          (existingChild.nodeType === 1 && existingChild.nodeName !== incomingChild.nodeName)) {
+        existing.removeChild(existingChild);
+        var next = existingChildren[i] || null;
         var holder = document.createDocumentFragment();
-        importAndAppend(holder, inc);
+        importAndAppend(holder, incomingChild);
         if (next) existing.insertBefore(holder, next);
         else existing.appendChild(holder);
         continue;
       }
-      if (exist.nodeType === 3) {
-        if (exist.nodeValue !== inc.nodeValue) exist.nodeValue = inc.nodeValue;
+      if (existingChild.nodeType === 3) {
+        if (existingChild.nodeValue !== incomingChild.nodeValue) existingChild.nodeValue = incomingChild.nodeValue;
         continue;
       }
-      if (exist.nodeType === 1) reconcile(exist, inc);
+      if (existingChild.nodeType === 1) reconcile(existingChild, incomingChild);
     }
     // No outer trim — streaming source is append-only, so existing
-    // children beyond incCh.length are script-added (D3 SVG, vis-network
+    // children beyond incomingChildren.length are script-added (D3 SVG, vis-network
     // canvas/SVG, ECharts canvas, etc.). Removing them erases the chart
     // mid-render even when the script targeted a non-leaf container.
   }
@@ -2521,27 +2534,27 @@ STREAMING_OBSERVER_SCRIPT = """
   function reinflateBareCSS(text) {
     if (/<style[\\s>]/i.test(text)) return text;
     _ivCssRule.lastIndex = 0;
-    var matches = [], m;
-    while ((m = _ivCssRule.exec(text)) !== null) {
-      matches.push({ start: m.index, end: _ivCssRule.lastIndex });
-      if (m.index === _ivCssRule.lastIndex) _ivCssRule.lastIndex++;
+    var matches = [], match;
+    while ((match = _ivCssRule.exec(text)) !== null) {
+      matches.push({ start: match.index, end: _ivCssRule.lastIndex });
+      if (match.index === _ivCssRule.lastIndex) _ivCssRule.lastIndex++;
     }
     if (matches.length < 2) return text;
     // Group consecutive rules (separated by < 50 chars of whitespace)
-    var groups = [], cur = null;
+    var groups = [], current = null;
     for (var i = 0; i < matches.length; i++) {
-      if (cur && matches[i].start - cur.end < 50) cur.end = matches[i].end;
-      else { cur = { start: matches[i].start, end: matches[i].end, count: 1 }; groups.push(cur); }
-      if (cur.start !== matches[i].start) cur.count = (cur.count || 1) + 1;
+      if (current && matches[i].start - current.end < 50) current.end = matches[i].end;
+      else { current = { start: matches[i].start, end: matches[i].end, count: 1 }; groups.push(current); }
+      if (current.start !== matches[i].start) current.count = (current.count || 1) + 1;
     }
     // Process from last to first to preserve indices
     for (var g = groups.length - 1; g >= 0; g--) {
-      var grp = groups[g];
-      var slice = text.substring(grp.start, grp.end);
+      var group = groups[g];
+      var slice = text.substring(group.start, group.end);
       // Require multiple rules in the group
-      var brace = slice.match(/\{/g);
-      if (!brace || brace.length < 2) continue;
-      text = text.substring(0, grp.start) + '<style>' + slice + '</style>' + text.substring(grp.end);
+      var braces = slice.match(/\{/g);
+      if (!braces || braces.length < 2) continue;
+      text = text.substring(0, group.start) + '<style>' + slice + '</style>' + text.substring(group.end);
     }
     return text;
   }
@@ -2574,10 +2587,10 @@ STREAMING_OBSERVER_SCRIPT = """
         toAnimate.push(node);
       }
       if (node.tagName === 'svg') {
-        for (var c = node.firstElementChild; c; c = c.nextElementSibling) visit(c, false);
+        for (var child = node.firstElementChild; child; child = child.nextElementSibling) visit(child, false);
       }
     }
-    for (var c = root.firstElementChild; c; c = c.nextElementSibling) visit(c, true);
+    for (var child = root.firstElementChild; child; child = child.nextElementSibling) visit(child, true);
     if (toAnimate.length === 0) return;
     requestAnimationFrame(function() {
       toAnimate.forEach(function(el) { el.classList.add('iv-fade-in'); });
@@ -2607,29 +2620,29 @@ STREAMING_OBSERVER_SCRIPT = """
       var walker = parent.document.createTreeWalker(
         msg, NodeFilter.SHOW_TEXT, null
       );
-      var t;
-      while ((t = walker.nextNode())) nodes.push(t);
+      var walkerNode;
+      while ((walkerNode = walker.nextNode())) nodes.push(walkerNode);
     } catch(e) { return; }
 
     for (var i = 0; i < nodes.length; i++) {
-      var tn = nodes[i];
-      var v = tn.nodeValue || '';
-      if (!v) continue;
-      if (v.indexOf(START_MARK) === -1 && v.indexOf(END_MARK) === -1) continue;
-      var p = tn.parentNode, isCode = false;
-      while (p && p !== msg) {
-        if (p.nodeType === 1 &&
-            (p.tagName === 'CODE' || p.tagName === 'PRE')) {
+      var textNode = nodes[i];
+      var value = textNode.nodeValue || '';
+      if (!value) continue;
+      if (value.indexOf(START_MARK) === -1 && value.indexOf(END_MARK) === -1) continue;
+      var ancestor = textNode.parentNode, isCode = false;
+      while (ancestor && ancestor !== msg) {
+        if (ancestor.nodeType === 1 &&
+            (ancestor.tagName === 'CODE' || ancestor.tagName === 'PRE')) {
           isCode = true; break;
         }
-        p = p.parentNode;
+        ancestor = ancestor.parentNode;
       }
       if (isCode) continue;
-      var cleaned = v
+      var cleaned = value
         .split(START_MARK).join('')
         .split(END_MARK).join('')
         .replace(/<\/[a-z][a-z0-9]*\s*>/gi, '');
-      try { tn.nodeValue = cleaned.replace(/^\s+|\s+$/g, '') ? cleaned : ''; }
+      try { textNode.nodeValue = cleaned.replace(/^\s+|\s+$/g, '') ? cleaned : ''; }
       catch(e) {}
     }
   }
@@ -2646,10 +2659,10 @@ STREAMING_OBSERVER_SCRIPT = """
     // run is idempotent and cheap. Regular cadence catches late flushes
     // within 1s instead of waiting for the next backoff slot.
     try { stripFinalizeArtifacts(); } catch(e) {}
-    var stripIntv = setInterval(function() {
+    var stripInterval = setInterval(function() {
       try { stripFinalizeArtifacts(); } catch(e) {}
     }, 1000);
-    setTimeout(function() { clearInterval(stripIntv); }, 30000);
+    setTimeout(function() { clearInterval(stripInterval); }, 30000);
     hideLoader();
     markAndAnimate(renderArea);
     // Nudge the height reporter across layout settle.
@@ -2670,8 +2683,8 @@ STREAMING_OBSERVER_SCRIPT = """
   function isBlockClosed() {
     var idx = determineIndex();
     if (idx === null) idx = 0;
-    var m = _ivResolveBlock(idx);
-    return !!m && m[0].indexOf(END_MARK) !== -1;
+    var match = _ivResolveBlock(idx);
+    return !!match && match[0].indexOf(END_MARK) !== -1;
   }
 
   // Tick skips its whole pipeline when the searchable text is
@@ -2760,8 +2773,8 @@ STREAMING_OBSERVER_SCRIPT = """
 
   // ---- Inject fade-in + loader CSS into our OWN document -------------
   (function injectFadeCss() {
-    var s = document.createElement('style');
-    s.textContent =
+    var styleEl = document.createElement('style');
+    styleEl.textContent =
       '@keyframes iv-fade-in-kf {' +
       '  from { opacity: 0; transform: translateY(2px); }' +
       '  to   { opacity: 1; transform: none; }' +
@@ -2792,15 +2805,15 @@ STREAMING_OBSERVER_SCRIPT = """
       '.iv-loading-dots span:nth-child(1) { animation-delay: -0.32s; }' +
       '.iv-loading-dots span:nth-child(2) { animation-delay: -0.16s; }' +
       '.iv-loading-label { opacity: 0.6; }';
-    document.head.appendChild(s);
+    document.head.appendChild(styleEl);
   })();
 
   // #iv-loader is rendered server-side as a sibling below #iv-render;
   // we only need to remove it on finalize.
   function hideLoader() {
     try {
-      var l = document.getElementById('iv-loader');
-      if (l && l.parentNode) l.parentNode.removeChild(l);
+      var loader = document.getElementById('iv-loader');
+      if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
     } catch(e) {}
   }
 
@@ -2808,16 +2821,16 @@ STREAMING_OBSERVER_SCRIPT = """
   // messages as chat scrolls / navigates; inner observer on our own
   // message catches every streaming text mutation; 400ms poll is a
   // safety net in case the observers miss anything.
-  var innerMo = null;
+  var innerObserver = null;
   function attachInnerObserver() {
-    if (innerMo) return;
+    if (innerObserver) return;
     var msg = findMyMessage();
     if (!msg) return;
     try {
-      innerMo = new MutationObserver(function(records) {
+      innerObserver = new MutationObserver(function(records) {
         tick(_ivHasChildListMutation(records));
       });
-      innerMo.observe(msg, {
+      innerObserver.observe(msg, {
         childList: true, subtree: true, characterData: true
       });
     } catch(e) {}
@@ -3111,7 +3124,8 @@ class Tools:
         self,
         title: str = "Visualization",
         __event_call__=None,
-    ) -> tuple:
+        __event_emitter__=None,
+    ):
         """
         What this tool does: visualize() mounts an iframe sandbox directly in the chat.
         After this tool is called, the assistant must stream exactly one HTML/SVG visualization fragment between the plain-text delimiters @@@VIZ-START and @@@VIZ-END.
@@ -3181,13 +3195,14 @@ return (() => {
             except Exception:
                 pass
 
+        html = _build_html(
+            self.valves.security_level,
+            title,
+            lang,
+            chime=self.valves.chime,
+        )
         response = HTMLResponse(
-            content=_build_html(
-                self.valves.security_level,
-                title,
-                lang,
-                chime=self.valves.chime,
-            ),
+            content=html,
             headers={"Content-Disposition": "inline"},
         )
         result_context = (
@@ -3204,4 +3219,12 @@ return (() => {
             f"the HTML source itself. Emit exactly ONE @@@VIZ-START/@@@VIZ-END pair "
             f"for this tool call."
         )
+        # Under native tool calling the embeds attached to the per-tool-call result item are not painted by the frontend,
+        # whereas the message-level "embeds" channel is path-independent and always renders (it is the same channel legacy already uses).
+        # Fall back to the original HTMLResponse return when no event emitter is available to preserve prior behavior.
+        if __event_emitter__:
+            await __event_emitter__(
+                {"type": "embeds", "data": {"embeds": [html]}}
+            )
+            return result_context
         return response, result_context
