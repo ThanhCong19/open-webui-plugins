@@ -1484,33 +1484,48 @@ function _ivSvgSize(svg) {
   return { w: Math.ceil(width), h: Math.ceil(height) };
 }
 
-function _ivDownloadSVG() {
-  var svg = _ivFirstSvg();
-  if (!svg) return;
-  var xml = _ivSerializedSvg(svg);
-  _ivSaveBlob(new Blob([xml], {type: 'image/svg+xml;charset=utf-8'}), _ivBaseName() + '.svg');
+// Terminal failure reporter — the fallback chain bottoms out here so a
+// dead-end never leaves the user with a silent no-op.
+function _ivExportError() {
+  try { if (typeof toast === 'function') toast('Export failed', 'error'); } catch (e) {}
 }
 
-function _ivSvgToPng() {
+function _ivDownloadSVG() {
+  try {
+    var svg = _ivFirstSvg();
+    if (!svg) { _ivExportError(); return; }
+    var xml = _ivSerializedSvg(svg);
+    _ivSaveBlob(new Blob([xml], {type: 'image/svg+xml;charset=utf-8'}), _ivBaseName() + '.svg');
+  } catch (e) { _ivExportError(); }
+}
+
+// onFail defaults to the terminal error toast so _ivSvgToPng is loop-free
+// when used as the last link of the PNG chain; callers that still have a
+// path left (e.g. the crisp-vector shortcut) pass _ivDomToPng instead.
+function _ivSvgToPng(onFail) {
+  var fail = onFail || _ivExportError;
   var svg = _ivFirstSvg();
-  if (!svg) return;
+  if (!svg) { fail(); return; }
   var size = _ivSvgSize(svg);
   var xml = _ivSerializedSvg(svg);
   var img = new Image();
   img.onload = function() {
-    var canvas = document.createElement('canvas');
-    canvas.width = size.w * 2;   // 2x for crisp rendering
-    canvas.height = size.h * 2;
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = _ivResolvedBg();
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    if (canvas.toBlob) {
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = size.w * 2;   // 2x for crisp rendering
+      canvas.height = size.h * 2;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = _ivResolvedBg();
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      if (!canvas.toBlob) { fail(); return; }
       canvas.toBlob(function(blob) {
         if (blob) _ivSaveBlob(blob, _ivBaseName() + '.png');
+        else fail();
       }, 'image/png');
-    }
+    } catch (e) { fail(); }   // tainted canvas / toBlob SecurityError
   };
+  img.onerror = function() { fail(); };   // malformed serialized SVG
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
 }
 
@@ -1524,11 +1539,11 @@ function _ivHtml2Png() {
     window.html2canvas(document.body, {backgroundColor: _ivResolvedBg(), scale: 2, logging: false})
       .then(function(canvas) {
         if (dlWrap) dlWrap.style.visibility = '';
-        if (canvas.toBlob) {
-          canvas.toBlob(function(blob) {
-            if (blob) _ivSaveBlob(blob, _ivBaseName() + '.png');
-          }, 'image/png');
-        }
+        if (!canvas.toBlob) { _ivSvgToPng(); return; }
+        canvas.toBlob(function(blob) {
+          if (blob) _ivSaveBlob(blob, _ivBaseName() + '.png');
+          else _ivSvgToPng();
+        }, 'image/png');
       })
       .catch(function() {
         if (dlWrap) dlWrap.style.visibility = '';
@@ -1637,8 +1652,10 @@ function _ivDownloadPNG() {
       var rect = svg.getBoundingClientRect();
       var bodyWidth = document.body.scrollWidth || 1;
       var bodyHeight = document.body.scrollHeight || 1;
-      if ((rect.width * rect.height) / (bodyWidth * bodyHeight) >= 0.5) { _ivSvgToPng(); return; }
-    } catch (e) { _ivSvgToPng(); return; }
+      // Crisp vector shortcut; if it fails, fall back to the DOM screenshot
+      // rather than dead-ending.
+      if ((rect.width * rect.height) / (bodyWidth * bodyHeight) >= 0.5) { _ivSvgToPng(_ivDomToPng); return; }
+    } catch (e) { _ivSvgToPng(_ivDomToPng); return; }
   }
   _ivDomToPng();
 }
