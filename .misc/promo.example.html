@@ -1,0 +1,110 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html,body { width:1600px; height:1000px; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(900px 700px at 8% -8%, rgba(108,92,231,.28), transparent 60%),
+      radial-gradient(820px 680px at 108% 118%, rgba(20,184,166,.22), transparent 58%),
+      linear-gradient(135deg, #0a0a0f 0%, #0d0e14 55%, #0a0b10 100%);
+    color:#e8e8ee; overflow:hidden; position:relative;
+  }
+  /* dot grid */
+  body::before{
+    content:""; position:absolute; inset:0;
+    background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 26px 26px; mask-image: radial-gradient(1400px 900px at 55% 45%, #000 40%, transparent 85%);
+  }
+  .wrap { position:relative; z-index:2; display:grid; grid-template-columns: 560px 1fr; height:100%;
+    align-items:center; padding: 0 76px; gap:56px; }
+
+  /* LEFT branding */
+  .brand .badgerow{ display:flex; gap:10px; margin-bottom:26px; }
+  .pill{ font-size:14px; font-weight:600; letter-spacing:.2px; padding:7px 13px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04); color:#c9c9d6; }
+  .pill.accent{ border-color:rgba(124,110,240,.5); background:rgba(124,110,240,.16); color:#c7bffb; }
+  .glyph{ font-size:70px; line-height:1; margin-bottom:20px; filter: drop-shadow(0 6px 22px rgba(124,110,240,.45)); }
+  h1{ font-size:62px; line-height:1.02; font-weight:800; letter-spacing:-1.4px;
+    background:linear-gradient(180deg,#ffffff, #c8c6e6); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub{ margin-top:20px; font-size:23px; line-height:1.5; color:#a9a9bd; max-width:500px; font-weight:400; }
+  .sub b{ color:#e6e4ff; font-weight:600; }
+  .foot{ margin-top:34px; display:flex; flex-direction:column; gap:11px; }
+  .foot div{ display:flex; align-items:center; gap:11px; font-size:17px; color:#9a9ab0; }
+  .dot{ width:8px;height:8px;border-radius:50%; background:linear-gradient(135deg,#7c6ef0,#14b8a6); flex:none; }
+
+  /* RIGHT valves card */
+  .card{ background:linear-gradient(180deg, rgba(23,24,32,.96), rgba(17,18,25,.97));
+    border:1px solid rgba(255,255,255,.09); border-radius:22px; padding:26px 28px 24px;
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,.8), 0 0 0 1px rgba(124,110,240,.06),
+      inset 0 1px 0 rgba(255,255,255,.05); backdrop-filter: blur(2px); }
+  .cardhead{ display:flex; align-items:center; justify-content:space-between; padding-bottom:16px;
+    margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,.07); }
+  .cardhead .t{ font-size:19px; font-weight:700; color:#f2f2f7; display:flex; align-items:center; gap:9px; }
+  .cardhead .save{ font-size:14px; font-weight:600; color:#0c0c10; background:#e9e9f2; padding:7px 15px; border-radius:9px; }
+  .sec{ font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; color:#7d7d95;
+    margin:16px 0 6px; }
+  .row{ display:flex; align-items:center; justify-content:space-between; padding:11px 4px; gap:18px;
+    border-bottom:1px solid rgba(255,255,255,.045); }
+  .row:last-child{ border-bottom:none; }
+  .lbl .n{ font-size:16.5px; color:#e4e4ee; font-weight:500; }
+  .lbl .d{ font-size:13px; color:#7f8096; margin-top:2px; }
+  /* toggle */
+  .tg{ width:46px; height:26px; border-radius:999px; background:#2b2c38; position:relative; flex:none;
+    border:1px solid rgba(255,255,255,.06); transition:all .2s; }
+  .tg::after{ content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%;
+    background:#8b8ca0; transition:all .2s; }
+  .tg.on{ background:linear-gradient(135deg,#7c6ef0,#5a4fd6); border-color:transparent; }
+  .tg.on::after{ left:23px; background:#fff; }
+  .tg.teal.on{ background:linear-gradient(135deg,#14b8a6,#0e9384); }
+  .tg.danger.on{ background:linear-gradient(135deg,#f0596a,#d8384c); }
+  .numpill{ font-size:15px; font-weight:600; color:#e6e4ff; background:rgba(124,110,240,.14);
+    border:1px solid rgba(124,110,240,.4); border-radius:8px; padding:5px 14px; flex:none; font-variant-numeric:tabular-nums; }
+  .row.hi{ background:rgba(124,110,240,.07); border-radius:10px; padding-left:10px; padding-right:10px;
+    border:1px solid rgba(124,110,240,.22); margin:2px 0; }
+  .row.trig .n{ font-weight:600; }
+  .cap{ margin-top:16px; font-size:13px; color:#71718a; text-align:center; line-height:1.5; }
+</style></head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="badgerow">
+        <span class="pill accent">Event function</span>
+        <span class="pill">Open WebUI 0.10.2+</span>
+        <span class="pill">v1.0.2</span>
+      </div>
+      <div class="glyph">🎛️</div>
+      <h1>Interface<br>Defaults</h1>
+      <div class="sub">Set <b>Settings &rarr; Interface</b> defaults for your entire instance from one function's Valves. New users seeded automatically.</div>
+      <div class="foot">
+        <div><span class="dot"></span>Auto-seeds every signup, OAuth &amp; SCIM account</div>
+        <div><span class="dot"></span>One-shot apply-to-all &amp; factory-reset buttons</div>
+        <div><span class="dot"></span>No monkey-patching. No startup hooks. Just events.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cardhead">
+        <div class="t">⚙️ Valves</div>
+        <div class="save">Save</div>
+      </div>
+
+      <div class="sec">Interface</div>
+      <div class="row"><div class="lbl"><div class="n">Text Scale</div><div class="d">UI scale (1.0 – 1.5)</div></div><div class="numpill">1.0</div></div>
+      <div class="row"><div class="lbl"><div class="n">High Contrast Mode</div><div class="d">High contrast mode</div></div><div class="tg"></div></div>
+      <div class="row"><div class="lbl"><div class="n">Chat Title in Browser Tab</div><div class="d">Display chat title in browser tab</div></div><div class="tg on"></div></div>
+
+      <div class="sec">Chat behavior</div>
+      <div class="row"><div class="lbl"><div class="n">Widescreen Mode</div><div class="d">Widescreen mode</div></div><div class="tg on"></div></div>
+      <div class="row"><div class="lbl"><div class="n">Ctrl+Enter to Send</div><div class="d">Ctrl+Enter to send (off = Enter to send)</div></div><div class="tg"></div></div>
+
+      <div class="sec">Artifacts</div>
+      <div class="row hi"><div class="lbl"><div class="n">iframe Sandbox Allow Same Origin</div><div class="d">Lets artifacts, previews &amp; embeds render</div></div><div class="tg on"></div></div>
+
+      <div class="sec">One-shot actions</div>
+      <div class="row trig"><div class="lbl"><div class="n">Apply to all existing users</div><div class="d">Push these defaults to everyone</div></div><div class="tg teal on"></div></div>
+      <div class="row trig"><div class="lbl"><div class="n">Reset all users to factory</div><div class="d">Wipe overrides + reset this config</div></div><div class="tg danger"></div></div>
+
+      <div class="cap">Native Valves UI · booleans as toggles, direction as a dropdown, scale as a number</div>
+    </div>
+  </div>
+</body></html>

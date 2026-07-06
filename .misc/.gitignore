@@ -1,0 +1,4 @@
+# intermediate render HTML — regenerate with: python banners.py
+banner_*.html
+# rendered output — regenerate with: node render.mjs
+banner-*.png
