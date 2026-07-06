@@ -1,5 +1,7 @@
 # 🎨 Inline Visualizer — Streaming Edition
 
+<img width="6400" height="1600" alt="banner-inline-visualizer-v2" src="https://github.com/user-attachments/assets/a96bc28d-ee9c-403a-a5a4-0429b6c154ce" />
+
 **Turn any Open WebUI chat into a live canvas.** Ask for a dashboard, diagram, chart, interactive quiz, architecture map, periodic table, flowchart, data explorer, OUR SOLAR SYSTEM — anything you'd draw in a browser — and watch the model paint it straight into the conversation as it types. Clickable nodes that send follow-up prompts. Copy-buttons that do the right thing. Sliders, toggles, and tabs that remember their state across reloads. Light/dark theme out of the box. A full 9-ramp design system so every visual looks like it belongs.
 
 Interactive. Stateful. Themed. Localized into 46 languages. Renders as the stream arrives — no waiting, no static pop-in.
