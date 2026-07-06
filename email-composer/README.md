@@ -1,5 +1,7 @@
 # ✉️ Email Composer
 
+<img width="6400" height="1600" alt="banner-email-composer" src="https://github.com/user-attachments/assets/57ae4b98-b8f5-4d7f-8669-80e35f078348" />
+
 AI-powered email drafting with an interactive Rich UI card embedded directly in chat.
 
 > [!TIP]
