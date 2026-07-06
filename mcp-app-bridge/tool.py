@@ -1,6 +1,8 @@
 """
 title: MCP App Bridge
 author: Classic298
+author_url: https://github.com/Classic298
+funding_url: https://github.com/Classic298
 version: 0.5.0
 description: Wraps MCP server tools and renders MCP App UI resources (ui://) as Rich UI embeds using Open WebUI's existing embed system. Spec-compliant: honors server-declared CSP, dispatches ui/notifications/tool-result for AppBridge SDK compatibility. No middleware changes needed.
 """

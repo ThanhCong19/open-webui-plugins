@@ -1,6 +1,8 @@
 """
 title: Vision Bridge
 author: Classic298
+author_url: https://github.com/Classic298
+funding_url: https://github.com/Classic298
 version: 1.0.0
 description: Let a text-only model handle images without core changes: strips each image in the request to a file-id marker (pair with the analyze_image tool), or in describe mode swaps it for a text description.
 """

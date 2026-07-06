@@ -1,6 +1,8 @@
 """
 title: Inline Visualizer
 author: Classic298
+author_url: https://github.com/Classic298
+funding_url: https://github.com/Classic298
 version: 2.1.3
 required_open_webui_version: 0.10.2
 description: Renders interactive HTML/SVG visualizations inline in chat. Requires "iframe Sandbox Allow Same Origin" to be enabled in Open WebUI Settings -> Interface. For design instructions, the model should call view_skill("visualize").

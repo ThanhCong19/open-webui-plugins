@@ -1,6 +1,8 @@
 """
 title: Keep reasoning_content (within and across turns)
 author: @Classic298 / @clsc
+author_url: https://github.com/Classic298
+funding_url: https://github.com/Classic298
 description: Monkey-patches middleware.get_reasoning_format so any non-ollama model returns 'reasoning_content' instead of None. Catches every reasoning_format call site at once (the in-turn tool-call loop rebuilds AND the cross-turn history rebuild at middleware.py:2385). Result: reasoning is preserved both within a turn's tool-call loop and across turns on prior assistant messages, so reasoning models can reference their own previous chain of thought. Use excluded_model_ids to opt specific models out (e.g. Gemma family). Leaves ollama (think_tags) untouched. Filter must be enabled so __init__ runs and installs the patch. Container restart required to remove the patch.
 required_open_webui_version: 0.9.5
 version: 2.0.0
