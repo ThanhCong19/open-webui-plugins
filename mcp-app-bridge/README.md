@@ -1,5 +1,7 @@
 # 🔌 MCP App Bridge
 
+<img width="6400" height="1600" alt="banner-mcp-app-bridge" src="https://github.com/user-attachments/assets/7d965c43-f8e3-4d09-a75f-d1d0c8f3f62f" />
+
 Renders [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) (SEP-1865) as Rich UI embeds in Open WebUI — using the existing embed system, no middleware changes needed.
 
 > [!TIP]
