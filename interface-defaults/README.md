@@ -1,5 +1,7 @@
 # 🎛️ Interface Defaults
 
+<img width="6400" height="1600" alt="banner-interface-defaults" src="https://github.com/user-attachments/assets/57c46cdc-96a1-4f4e-a451-dacef6d55320" />
+
 Set the **Settings → Interface** defaults for your entire instance from one function's Valves. New users are seeded automatically, and two one-shot buttons let you apply the defaults to everyone or factory-reset the whole instance.
 
 > [!IMPORTANT]
