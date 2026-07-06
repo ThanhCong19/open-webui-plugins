@@ -10,4 +10,4 @@ Include the affected plugin, a description of the issue, and steps to reproduce 
 
 ## Scope
 
-These plugins run inside your own Open WebUI instance and inherit its trust model and permissions. Treat them like any third-party code: review before installing, keep Open WebUI up to date, and grant only the access a plugin needs. Vulnerabilities in Open WebUI itself belong in the [Open WebUI security policy](https://github.com/open-webui/open-webui/security), not here.
+These plugins run inside your own Open WebUI instance and inherit its trust model and permissions. Treat them like any third-party code: review before installing, keep Open WebUI up to date, and grant only the access a plugin needs. Vulnerabilities in Open WebUI itself should be reported to [Open WebUI directly](https://github.com/open-webui/open-webui/security), not here.
