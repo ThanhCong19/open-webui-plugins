@@ -126,7 +126,7 @@ The **tool** mounts the iframe wrapper, injects the design-system CSS/JS, and ta
 ### 2. Install the skill
 
 1. Copy the contents of `SKILL.md`
-2. In Open WebUI: **Workspace → Knowledge → Create Skill**
+2. In Open WebUI: **Workspace → Skills → Create Skill**
 3. Name it **`Visualize`** (the tool calls `view_skill("visualize")` by this name)
 4. Paste. **Save**.
 
