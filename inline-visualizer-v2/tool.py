@@ -3203,6 +3203,7 @@ class Tools:
         __event_emitter__=None,
     ):
         """
+        You need to call this tool before EVERY visualization you want to render.
         What this tool does: visualize() mounts an iframe sandbox directly in the chat.
         After this tool is called, the assistant must stream exactly one HTML/SVG visualization fragment between the plain-text delimiters @@@VIZ-START and @@@VIZ-END.
         The sandbox renders that fragment live for the user.
