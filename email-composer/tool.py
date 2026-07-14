@@ -3,7 +3,7 @@ title: Email Composer
 author: Classic298
 author_url: https://github.com/Classic298
 funding_url: https://github.com/Classic298
-version: 1.0.1
+version: 1.0.2
 description: Renders composed emails as interactive Rich UI cards with rich text editing, markdown auto-conversion, To/CC/BCC chips, priority badges, copy, download .eml, mailto, autosave, and word count. Requires 'Allow Iframe Same-Origin Access' in Settings > Interface for autosave (all other features work without it). Note: mailto is plain text only and may truncate long emails; use Download .eml for formatted or long emails.
 """
 
@@ -30,7 +30,7 @@ class Tools:
         bcc: str = "",
         priority: str = "normal",
         __event_emitter__=None,
-    ) -> HTMLResponse:
+    ):
         """
         Composes and displays an email as an interactive card embedded in the chat.
         Use this tool whenever the user asks to write, draft, or compose an email.
@@ -42,7 +42,7 @@ class Tools:
         :param cc: CC recipient(s), separated by semicolons (optional)
         :param bcc: BCC recipient(s), separated by semicolons (optional)
         :param priority: Email priority: high, normal, or low (optional)
-        :return: Interactive email card
+        :return: Confirmation that the interactive email card is displayed
         """
         if __event_emitter__:
             await __event_emitter__({"type": "status", "data": {"description": "Composing email...", "done": False}})
@@ -61,7 +61,20 @@ class Tools:
 
         if __event_emitter__:
             await __event_emitter__({"type": "status", "data": {"description": "Email ready", "done": True}})
+            # Deliver the card on the message-level "embeds" channel so it renders
+            # inline under BOTH native (Open WebUI >= 0.10) and legacy tool calling.
+            # Returning an HTMLResponse attaches the embed to the tool-call result
+            # instead, which 0.10's native path does not paint inline, so the card
+            # only showed up inside the collapsed tool-call details.
+            await __event_emitter__({"type": "embeds", "data": {"embeds": [html]}})
+            return (
+                "The interactive email card is now displayed in the chat. "
+                "Do not repeat the email body, subject or recipients in your reply. "
+                "Reply with one short sentence confirming the draft is ready to review, "
+                "edit and send from the card."
+            )
 
+        # No event emitter (older Open WebUI): fall back to the Rich UI return.
         return HTMLResponse(content=html, headers={"Content-Disposition": "inline"})
 
 

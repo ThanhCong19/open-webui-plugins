@@ -126,7 +126,7 @@ The **tool** mounts the iframe wrapper, injects the design-system CSS/JS, and ta
 ### 2. Install the skill
 
 1. Copy the contents of `SKILL.md`
-2. In Open WebUI: **Workspace → Skills → Create Skill**
+2. In Open WebUI: **Workspace → Knowledge → Create Skill**
 3. Name it **`Visualize`** (the tool calls `view_skill("visualize")` by this name)
 4. Paste. **Save**.
 
@@ -138,7 +138,7 @@ The **tool** mounts the iframe wrapper, injects the design-system CSS/JS, and ta
 1. **Admin Panel → Settings → Models** → edit the model you want
 2. Under **Tools**, enable **Visualizer**
 3. Under **Skills**, attach **Visualizer**
-4. Ensure **native function calling** is enabled
+4. Check **Function Calling** is **not** set to `Legacy` (Advanced Params). `Default` and `Native` both work, and `Default` has been native since Open WebUI `0.10.0`
 5. Save.
 
 ### 4. Enable same-origin access — **required**

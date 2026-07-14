@@ -33,7 +33,7 @@ AI-powered email drafting with an interactive Rich UI card embedded directly in 
 3. Paste the code and click **Save**
 4. In Open WebUI, go to **Admin Panel → Settings → Models** and edit your model
 5. Under **Tools**, enable the **Email Composer** tool (or enable it in the chat on demand)
-6. Ensure native function calling is enabled for your model
+6. Check the model's **Function Calling** is **not** set to `Legacy` (Advanced Params). `Default` and `Native` both work, and `Default` has been native since Open WebUI `0.10.0`
 7. Save
 
 ### Optional

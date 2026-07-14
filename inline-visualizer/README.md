@@ -69,7 +69,7 @@ Tested with Claude Haiku 4.5, Claude Opus 4.5, Claude Opus 4.6, Gemini 3 Flash P
 1. Go to **Admin Panel → Settings → Models** and edit your model
 2. Under **Tools**, enable the **Inline Visualizer** tool
 3. Under **Skills**, attach the **visualize** skill
-4. Ensure native function calling is enabled for your model
+4. Check the model's **Function Calling** is **not** set to `Legacy` (Advanced Params). `Default` and `Native` both work, and `Default` has been native since Open WebUI `0.10.0`
 5. Save
 
 ### 4. Enable Same-Origin Access
