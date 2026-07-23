@@ -3217,12 +3217,11 @@ class Tools:
         After this tool is called, the assistant must stream exactly one HTML/SVG visualization fragment between the plain-text delimiters @@@VIZ-START and @@@VIZ-END.
         The sandbox renders that fragment live for the user.
         
-        Use this tool ONLY for EXPLICIT visualization requests.
-        Do NOT use this tool proactively. Do NOT infer that a visualization would be helpful.
-        **If the user did not explicitly ask for a visual artifact, do not call visualize().**
-        Never use visualize() for ordinary assistant output.
-        The chat you are responding in has a full Markdown, LaTeX, KaTeX and Mermaid rendering engine.
-        Call visualize() ONLY when the user clearly and UNAMBIGUOUSLY, DIRECTLY, EXPLICITLY asked for a visual artifact (e.g. diagrams, charts, graphs, dashboards, illustrations, interactive explainers, etc.).
+        Use this tool for visual artifacts — charts, graphs, diagrams, dashboards, illustrations, interactive explainers.
+        Be PROACTIVE: whenever your answer contains quantitative results worth plotting — a comparison, a trend over time, a breakdown across categories/regions, a ranking, or KPI numbers (roughly 3+ data points) — call visualize() and render the chart WITHOUT waiting to be asked. Do NOT ask "would you like a chart?" — just make it.
+        You may of course also call it whenever the user explicitly asks for any visual artifact.
+        Skip it only when the answer is pure prose with no data to plot, or a single trivial number a chart would not clarify.
+        The chat you are responding in has a full Markdown, LaTeX, KaTeX and Mermaid rendering engine — use plain Markdown for tables and text, and visualize() for actual charts/diagrams.
 
         IMPORTANT:
         BEFORE CALLING THIS TOOL, YOU MUST: Call view_skill("visualize") FIRST.
