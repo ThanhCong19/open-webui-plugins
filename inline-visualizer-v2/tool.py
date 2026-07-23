@@ -2293,7 +2293,16 @@ STREAMING_OBSERVER_SCRIPT = """
 
       if (hideThis) {
         var block = nearestBlockAncestor(textNode.parentNode, msg);
-        if (block && block !== msg && !block.contains(myFrame)) {
+        // Only hide an ancestor that holds nothing but this text node.
+        // Open WebUI 0.10 renders an `html` markdown token as a bare text
+        // node (Markdown -> MarkdownTokens -> HTMLToken -> {token.text}),
+        // with no element of its own, so the nearest block ancestor of the
+        // viz source can be the whole message content container. Hiding
+        // that takes the prose and the tool-call groups down with it.
+        var tightBlock = block &&
+                         block.childNodes.length === 1 &&
+                         block.firstChild === textNode;
+        if (block && block !== msg && !block.contains(myFrame) && tightBlock) {
           // Clean block ancestor — hide wholesale, no text touched.
           toHideEls.push(block);
         } else {
