@@ -1,6 +1,6 @@
 ---
 name: visualize
-description: Render rich interactive visuals — SVG diagrams, HTML widgets, Chart.js charts, and interactive explainers — directly inline in chat using visualize(). Use only when the user explicitly asks for a visualization, diagram, chart, graph, drawing, map, dashboard, or similar visual artifact. Do not use for ordinary markdown, code blocks, file previews, or answer formatting
+description: Render rich interactive visuals — SVG diagrams, HTML widgets, Chart.js charts, and interactive explainers — directly inline in chat using visualize(). Use whenever the user asks for a visual, OR proactively whenever your answer contains quantitative results worth plotting — a comparison, trend, breakdown, ranking, or KPI numbers (~3+ data points). Skip only for pure prose with no data or a single trivial number; use ordinary markdown for plain tables and text.
 ---
 
 # Inline Visualizer
