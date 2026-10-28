@@ -24,7 +24,7 @@ These rules keep visuals clean, accessible, and consistent with the host UI:
 - **Sentence case** — all labels and headings
 - **Round displayed numbers** — use Math.round, toLocaleString, or Intl.NumberFormat
 - **Min font size 11px** — smaller becomes unreadable on most screens
-- **Text weights** — 400 regular, 500 for emphasis only
+- **Text weights** — 400 regular, 500 for emphasis; 600 only for card titles and KPI values
 - **All explanatory text goes in your prose response**, not inside the visual (keeps visuals data-dense and lets the model's response provide context)
 
 ---
@@ -49,6 +49,10 @@ The tool injects theme-aware CSS variables that automatically adapt to light/dar
 | `--font-sans` | Default font |
 | `--font-mono` | Code font |
 | `--radius-md / --radius-lg / --radius-xl` | 8px / 12px / 16px |
+| `--color-chart-line / -area / -marker / -peak / -grid` | Single time-series line, its area fill, point outline, peak point, grid |
+| `--color-threshold-good / -warn`, `--color-zone-good / -warn` | Target and alert lines, and the bands above target / below alert |
+| `--color-status-good / -warn / -alert` | Good / watch / alert status colour (bars, dots) |
+| `--color-tooltip-bg / -label / -text` | Dark tooltip |
 
 ### Color ramps (9 ramps, auto light/dark)
 
@@ -84,6 +88,9 @@ Each ramp provides fill, stroke, and text variants that adapt to the theme autom
 | 5 | amber-400 | #BA7517 |
 
 For area/line fills, use same color at 20% opacity.
+
+A single metric over time uses `--color-chart-line` (not the table above); bars coloured by status
+use `--color-status-good / -warn / -alert`.
 
 ---
 
@@ -222,7 +229,7 @@ new Chart(ctx, {
 - Always `responsive: true`, `maintainAspectRatio: false`
 - Read CSS variables for text/border colors — never hardcode
 - `borderRadius: 4` on bars
-- Line charts: `tension: 0.3` for smooth curves
+- Line charts: `cubicInterpolationMode: 'monotone'` — smooth without overshooting the data (`tension` curves dip below real minima)
 - Doughnut: `cutout: '60%'` — never use pie
 
 **Chart type selection:**
@@ -230,9 +237,122 @@ new Chart(ctx, {
 | Data shape | Type | Notes |
 |-----------|------|-------|
 | Categories + values | Bar | Horizontal if labels are long |
-| Time series | Line | tension: 0.3 |
+| Time series | Line | cubicInterpolationMode: 'monotone' |
 | Parts of whole | Doughnut | cutout: '60%' |
 | Two variables | Scatter | Add trend line if relevant |
+
+### Analysis card — KPI strip + line chart with thresholds
+
+Use for a metric over time judged against targets (e.g. a margin by month vs a 3% goal and a 2%
+alert level). One card holds: title + period chip → KPI strip → plot → one-line note. The classes
+`viz-card`, `viz-card-head`, `viz-card-title`, `viz-card-sub`, `viz-chip`, `kpi-strip`, `kpi`,
+`kpi-label`, `kpi-row`, `kpi-value`, `kpi-detail` (`good` / `bad`), `viz-plot`, `viz-note` and the
+`--color-chart-*`, `--color-threshold-*`, `--color-zone-*`, `--color-tooltip-*` variables are
+auto-injected — use them instead of writing your own card CSS.
+
+```html
+<div class="viz-card">
+  <div class="viz-card-head">
+    <div>
+      <div class="viz-card-title">Net margin — Jan–Aug 2026</div>
+      <div class="viz-card-sub">% of revenue, by month</div>
+    </div>
+    <span class="viz-chip">Jan–Aug 2026</span>
+  </div>
+  <div class="kpi-strip">
+    <div class="kpi"><div class="kpi-label">Latest month</div>
+      <div class="kpi-row"><span class="kpi-value">3.41%</span><span class="kpi-detail good">+0.65 pt</span></div></div>
+    <div class="kpi"><div class="kpi-label">Average</div>
+      <div class="kpi-row"><span class="kpi-value">2.87%</span><span class="kpi-detail">8 months</span></div></div>
+    <div class="kpi"><div class="kpi-label">Months below 2%</div>
+      <div class="kpi-row"><span class="kpi-value">2</span><span class="kpi-detail bad">Mar, Jun</span></div></div>
+  </div>
+  <div class="viz-plot"><canvas id="trend"></canvas></div>
+  <div class="viz-note">Dashed lines: target 3% and alert 2%.</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const s = getComputedStyle(document.documentElement);
+const css = (name) => s.getPropertyValue(name).trim();
+const pct = (v) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v) + '%';
+const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+const data = [2.4, 2.9, 1.8, 3.2, 3.5, 1.9, 2.76, 3.41];
+const thresholds = [
+  { value: 3, label: 'Target 3%', color: css('--color-threshold-good') },
+  { value: 2, label: 'Alert 2%', color: css('--color-threshold-warn') }
+];
+const statusOf = (v) => v >= 3 ? 'Good' : v >= 2 ? 'Watch' : 'Alert';
+const peak = data.indexOf(Math.max(...data));
+
+// Zones behind the line (above target, below alert) + dashed threshold lines with pill labels
+const thresholdPlugin = {
+  id: 'thresholds',
+  beforeDatasetsDraw(chart) {
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    const top = Math.min(Math.max(y.getPixelForValue(thresholds[0].value), a.top), a.bottom);
+    const bottom = Math.min(Math.max(y.getPixelForValue(thresholds[1].value), a.top), a.bottom);
+    ctx.save();
+    ctx.fillStyle = css('--color-zone-good'); ctx.fillRect(a.left, a.top, a.width, top - a.top);
+    ctx.fillStyle = css('--color-zone-warn'); ctx.fillRect(a.left, bottom, a.width, a.bottom - bottom);
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    ctx.save();
+    ctx.font = '600 11px ' + css('--font-sans');
+    ctx.textBaseline = 'middle';
+    for (const t of thresholds) {
+      const py = y.getPixelForValue(t.value);
+      if (py < a.top || py > a.bottom) continue;
+      ctx.strokeStyle = t.color; ctx.globalAlpha = 0.6; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(a.left, py); ctx.lineTo(a.right, py); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.setLineDash([]);
+      const w = ctx.measureText(t.label).width + 14, x = a.right - w - 4;
+      ctx.fillStyle = css('--color-bg-primary');
+      ctx.beginPath(); ctx.roundRect(x, py - 9, w, 18, 9); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = t.color; ctx.fillText(t.label, x + 7, py);
+    }
+    ctx.restore();
+  }
+};
+
+new Chart(document.getElementById('trend'), {
+  type: 'line',
+  data: { labels, datasets: [{
+    data, borderColor: css('--color-chart-line'), backgroundColor: css('--color-chart-area'),
+    fill: 'origin', cubicInterpolationMode: 'monotone', borderWidth: 2,
+    pointBackgroundColor: css('--color-bg-primary'), pointBorderWidth: 2,
+    pointBorderColor: data.map((_, i) => css(i === peak ? '--color-chart-peak' : '--color-chart-marker')),
+    pointRadius: data.map((_, i) => i === peak ? 6 : 4), pointHoverRadius: 7
+  }] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: css('--color-tooltip-bg'), titleColor: css('--color-tooltip-label'),
+        bodyColor: css('--color-tooltip-text'), titleFont: { size: 11 }, bodyFont: { size: 15, weight: '600' },
+        padding: 10, cornerRadius: 9, displayColors: false,
+        callbacks: { label: (c) => pct(c.parsed.y), afterLabel: (c) => statusOf(c.parsed.y) }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, border: { display: false },
+        ticks: { color: css('--color-text-secondary'), font: { size: 11, weight: '500' } } },
+      y: { grid: { color: css('--color-chart-grid') }, border: { display: false },
+        ticks: { color: css('--color-text-tertiary'), font: { size: 11, weight: '500' }, callback: (v) => pct(v) } }
+    }
+  },
+  plugins: [thresholdPlugin]
+});
+</script>
+```
+
+Rules for this card:
+- KPI values are the same numbers as the prose and table, formatted the same way.
+- `kpi-detail good` for a favourable change, `bad` for an unfavourable one, plain otherwise.
+- Keep thresholds in one array; zones and labels read from it. Leave a threshold out if it is outside the data range.
+- One series per card. Several groups → small multiples or a bar chart, not five lines in one plot.
 
 ### Inline SVG charts (no library)
 
@@ -250,13 +370,11 @@ Horizontal bar:
 ## Component patterns
 
 ### Metric cards
+Use the injected KPI strip (see [Analysis card](#analysis-card--kpi-strip--line-chart-with-thresholds)):
 ```html
-<div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;">
-  <div style="background:var(--color-bg-secondary); border:0.5px solid var(--color-border-tertiary);
-    border-radius:var(--radius-lg); padding:16px;">
-    <div style="font-size:12px; color:var(--color-text-secondary);">Label</div>
-    <div style="font-size:28px; font-weight:500; color:var(--color-text-primary); margin-top:4px;">$3,870</div>
-  </div>
+<div class="kpi-strip">
+  <div class="kpi"><div class="kpi-label">Revenue</div>
+    <div class="kpi-row"><span class="kpi-value">$3,870</span><span class="kpi-detail good">+5.18%</span></div></div>
   <!-- repeat -->
 </div>
 ```

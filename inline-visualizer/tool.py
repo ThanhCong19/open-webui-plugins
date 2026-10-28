@@ -3,7 +3,7 @@ title: Inline Visualizer
 author: Classic298
 author_url: https://github.com/Classic298
 funding_url: https://github.com/Classic298
-version: 1.5.1
+version: 1.5.2
 description: Renders interactive HTML/SVG visualizations inline in chat. For design system instructions, the model should call view_skill("visualize").
 """
 
@@ -21,24 +21,46 @@ from pydantic import BaseModel, Field
 
 THEME_CSS = """
 :root {
-  --color-text-primary: #1F2937;
-  --color-text-secondary: #6B7280;
-  --color-text-tertiary: #9CA3AF;
+  --color-text-primary: #111827;
+  --color-text-secondary: #667085;
+  --color-text-tertiary: #98A2B3;
   --color-text-info: #2563EB;
-  --color-text-success: #059669;
+  --color-text-success: #178C5B;
   --color-text-warning: #D97706;
   --color-text-danger: #DC2626;
   --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #F9FAFB;
+  --color-bg-secondary: #F7F9FB;
   --color-bg-tertiary: #F3F4F6;
   --color-border-tertiary: rgba(0,0,0,0.15);
   --color-border-secondary: rgba(0,0,0,0.3);
   --color-border-primary: rgba(0,0,0,0.4);
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'SF Mono', Menlo, Consolas, monospace;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  /* --- Analysis card (Figma NBC 5:946): KPI, plot, thresholds, tooltip --- */
+  --color-card-border: #E6EBF2;
+  --color-plot-border: #E4EBF7;
+  --color-kpi-border: #EFEFEF;
+  --color-kpi-value: #2563EB;
+  --color-chip-bg: #F7F9FC;
+  --color-chip-border: #E4E9F0;
+  --color-chart-line: #165DFC;
+  --color-chart-area: rgba(22,93,252,0.08);
+  --color-chart-marker: #1062AA;
+  --color-chart-peak: #02B7D5;
+  --color-chart-grid: rgba(226,232,240,0.72);
+  --color-threshold-good: #16A34A;
+  --color-threshold-warn: #D97706;
+  --color-zone-good: rgba(220,252,231,0.68);
+  --color-zone-warn: rgba(255,247,237,0.6);
+  --color-tooltip-bg: #111827;
+  --color-tooltip-label: #C7D2FE;
+  --color-tooltip-text: #FFFFFF;
+  --color-status-good: #19A55F;
+  --color-status-warn: #D97706;
+  --color-status-alert: #F85F66;
   /* --- Color ramp variables (light) --- */
   --ramp-purple-fill:#EEEDFE; --ramp-purple-stroke:#534AB7; --ramp-purple-th:#3C3489; --ramp-purple-ts:#534AB7;
   --ramp-teal-fill:#E1F5EE;   --ramp-teal-stroke:#0F6E56;   --ramp-teal-th:#085041;   --ramp-teal-ts:#0F6E56;
@@ -109,6 +131,27 @@ THEME_CSS = """
   --color-border-tertiary: rgba(255,255,255,0.15);
   --color-border-secondary: rgba(255,255,255,0.3);
   --color-border-primary: rgba(255,255,255,0.4);
+  --color-card-border: rgba(255,255,255,0.10);
+  --color-plot-border: rgba(255,255,255,0.10);
+  --color-kpi-border: rgba(255,255,255,0.08);
+  --color-kpi-value: #60A5FA;
+  --color-chip-bg: #1F1F1F;
+  --color-chip-border: rgba(255,255,255,0.12);
+  --color-chart-line: #60A5FA;
+  --color-chart-area: rgba(96,165,250,0.12);
+  --color-chart-marker: #6AA5E0;
+  --color-chart-peak: #22D3EE;
+  --color-chart-grid: rgba(255,255,255,0.08);
+  --color-threshold-good: #4ADE80;
+  --color-threshold-warn: #FBBF24;
+  --color-zone-good: rgba(22,163,74,0.12);
+  --color-zone-warn: rgba(217,119,6,0.10);
+  --color-tooltip-bg: #000000;
+  --color-tooltip-label: #C7D2FE;
+  --color-tooltip-text: #FFFFFF;
+  --color-status-good: #34D399;
+  --color-status-warn: #FBBF24;
+  --color-status-alert: #F87171;
   --ramp-purple-fill:#3C3489; --ramp-purple-stroke:#AFA9EC; --ramp-purple-th:#CECBF6; --ramp-purple-ts:#AFA9EC;
   --ramp-teal-fill:#085041;   --ramp-teal-stroke:#5DCAA5;   --ramp-teal-th:#9FE1CB;   --ramp-teal-ts:#5DCAA5;
   --ramp-coral-fill:#712B13;  --ramp-coral-stroke:#F0997B;  --ramp-coral-th:#F5C4B3;  --ramp-coral-ts:#F0997B;
@@ -232,6 +275,28 @@ select {
   border-radius: var(--radius-md); padding: 6px 10px; font-size: 13px;
   color: var(--color-text-primary); font-family: var(--font-sans);
 }
+/* --- Analysis card: KPI strip + chart (Figma NBC 5:946) --- */
+.viz-card { display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  background: var(--color-bg-secondary); border: 1px solid var(--color-card-border); border-radius: 14px; }
+.viz-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.viz-card-title { font-size: 16px; font-weight: 600; line-height: 22px; color: var(--color-text-primary); }
+.viz-card-sub { margin-top: 2px; font-size: 11px; color: var(--color-text-secondary); }
+.viz-chip { display: inline-flex; flex-shrink: 0; align-items: center; height: 30px; padding: 0 10px;
+  background: var(--color-chip-bg); border: 1px solid var(--color-chip-border); border-radius: 8px;
+  font-size: 11px; color: var(--color-text-primary); white-space: nowrap; }
+.kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.kpi { min-height: 54px; padding: 8px 12px; background: var(--color-bg-primary);
+  border: 1px solid var(--color-kpi-border); border-radius: 10px; }
+.kpi-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--color-text-secondary); }
+.kpi-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 2px; }
+.kpi-value { font-size: 18px; font-weight: 600; color: var(--color-kpi-value); font-variant-numeric: tabular-nums; }
+.kpi-detail { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); }
+.kpi-detail.good { color: var(--color-text-success); }
+.kpi-detail.bad { color: var(--color-text-danger); }
+.viz-plot { position: relative; height: 280px; padding: 12px; background: var(--color-bg-primary);
+  border: 1px solid var(--color-plot-border); border-radius: 12px; }
+.viz-note { font-size: 11px; color: var(--color-text-tertiary); }
 code {
   font-family: var(--font-mono); font-size: 13px; background: var(--color-bg-tertiary);
   padding: 2px 6px; border-radius: 4px;
