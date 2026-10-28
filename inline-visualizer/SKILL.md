@@ -530,3 +530,4 @@ Use `openLink` for external references, documentation links, or source code link
 7. **Missing dominant-baseline="central"** — text sits 4px too high
 8. **Missing arrow marker in defs** — always include it
 9. **Hardcoded colors** — always use CSS variables or ramp classes
+10. **Unbalanced brackets in a Chart.js config** — one stray `}` in nested `options` kills the whole script and leaves an empty frame. Write nested options one property per line; the tool refuses scripts whose `( [ {` do not balance and tells you where

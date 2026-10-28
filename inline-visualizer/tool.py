@@ -3,7 +3,7 @@ title: Inline Visualizer
 author: Classic298
 author_url: https://github.com/Classic298
 funding_url: https://github.com/Classic298
-version: 1.5.2
+version: 1.5.3
 description: Renders interactive HTML/SVG visualizations inline in chat. For design system instructions, the model should call view_skill("visualize").
 """
 
@@ -960,6 +960,165 @@ def _build_html(content: str, security_level: str = "strict",
 
 
 # ---------------------------------------------------------------------------
+# Kiểm ngoặc của <script> inline (Fpt-Feature: viz-script-bracket-check)
+# ---------------------------------------------------------------------------
+# Mô hình hay lệch một dấu ngoặc khi viết cấu hình Chart.js lồng nhiều tầng trên một dòng: cả
+# script hỏng (SyntaxError), iframe chỉ còn khung trống mà tool vẫn báo "rendered". Trước khi
+# nhúng, đếm () {} [] của từng script (bỏ qua chuỗi, template literal, comment, regex literal);
+# lệch thì trả lỗi để mô hình sửa và gọi lại. Chỉ bắt lỗi ngoặc, không phải trình phân tích JS.
+
+_INLINE_SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script\s*>", re.IGNORECASE | re.DOTALL)
+_JS_SCRIPT_TYPES = {"", "text/javascript", "application/javascript", "module", "text/babel"}
+_OPENERS = {"(": ")", "[": "]", "{": "}"}
+_CLOSERS = {")": "(", "]": "[", "}": "{"}
+# Sau các ký tự hay từ khoá này, "/" mở một regex literal; sau tên, số hay ")" "]" là phép chia.
+_REGEX_AFTER_CHARS = set("(,=:[!&|?{};+-*%<>~^")
+_REGEX_AFTER_WORDS = {"return", "typeof", "case", "do", "else", "in", "of", "new", "delete", "void",
+                      "throw", "instanceof", "yield", "await"}
+
+
+def _bracket_problem(js: str) -> str | None:
+    """Lỗi ngoặc đầu tiên của một đoạn JS (kèm số dòng), hoặc None khi cân."""
+    stack: list[tuple[str, int]] = []  # (ngoặc mở hoặc "${", dòng)
+    line, i, n = 1, 0, len(js)
+    prev = ""  # ký tự có nghĩa gần nhất, hoặc từ vừa đọc (để đoán "/")
+    in_template: list[int] = []  # dòng mở của các template literal đang dở (khi thoát ra ${…})
+
+    def scan_template(start_line: int) -> str | None:
+        """Đọc thân template tới dấu ` đóng hoặc tới "${"; trả lỗi nếu hết tệp."""
+        nonlocal i, line
+        while i < n:
+            c = js[i]
+            if c == "\\":
+                i += 2
+                continue
+            if c == "\n":
+                line += 1
+            if c == "`":
+                i += 1
+                return None
+            if c == "$" and js[i + 1:i + 2] == "{":
+                stack.append(("${", line))
+                in_template.append(start_line)
+                i += 2
+                return None
+            i += 1
+        return f"template literal opened on line {start_line} is never closed"
+
+    while i < n:
+        c = js[i]
+        if c == "\n":
+            line += 1
+            i += 1
+            continue
+        if c in " \t\r":
+            i += 1
+            continue
+        if c == "/" and js[i + 1:i + 2] == "/":
+            end = js.find("\n", i)
+            i = n if end < 0 else end
+            continue
+        if c == "/" and js[i + 1:i + 2] == "*":
+            end = js.find("*/", i + 2)
+            if end < 0:
+                return f"comment opened on line {line} is never closed"
+            line += js.count("\n", i, end)
+            i = end + 2
+            continue
+        if c in "'\"":
+            start, j = line, i + 1
+            while j < n and js[j] != c:
+                if js[j] == "\\":
+                    j += 1
+                elif js[j] == "\n":
+                    return f"string opened on line {start} is not closed on the same line"
+                j += 1
+            if j >= n:
+                return f"string opened on line {start} is never closed"
+            i, prev = j + 1, "a"
+            continue
+        if c == "`":
+            i += 1
+            problem = scan_template(line)
+            if problem:
+                return problem
+            prev = "a"
+            continue
+        if c == "/" and (prev == "" or prev in _REGEX_AFTER_CHARS or prev in _REGEX_AFTER_WORDS):
+            j, in_class = i + 1, False
+            while j < n and (in_class or js[j] != "/"):
+                if js[j] == "\\":
+                    j += 1
+                elif js[j] == "[":
+                    in_class = True
+                elif js[j] == "]":
+                    in_class = False
+                elif js[j] == "\n":
+                    break
+                j += 1
+            if j < n and js[j] == "/":
+                i, prev = j + 1, "a"
+                while i < n and (js[i].isalpha()):
+                    i += 1
+                continue
+        if c.isalnum() or c in "_$":
+            j = i
+            while j < n and (js[j].isalnum() or js[j] in "_$"):
+                j += 1
+            word = js[i:j]
+            prev = word if word in _REGEX_AFTER_WORDS else "a"
+            i = j
+            continue
+        if c in _OPENERS:
+            stack.append((c, line))
+        elif c in _CLOSERS:
+            if not stack:
+                return f"line {line}: unexpected '{c}' with nothing open"
+            top, opened = stack.pop()
+            if top == "${" and c == "}":
+                in_template.pop()
+                i += 1
+                problem = scan_template(opened)
+                if problem:
+                    return problem
+                prev = "a"
+                continue
+            if top != _CLOSERS[c]:
+                want = "}" if top == "${" else _OPENERS[top]
+                return (f"line {line}: found '{c}' but the '{top}' opened on line {opened} "
+                        f"expects '{want}' first")
+        prev = c
+        i += 1
+    if stack:
+        top, opened = stack[-1]
+        return f"'{top}' opened on line {opened} is never closed"
+    return None
+
+
+def _script_bracket_errors(content: str) -> list[str]:
+    """Mỗi <script> inline có ngoặc lệch: một dòng mô tả (số thứ tự script, dòng, đoạn mã)."""
+    errors = []
+    for index, match in enumerate(_INLINE_SCRIPT_RE.finditer(content), 1):
+        attrs, js = match.group(1), match.group(2)
+        if re.search(r"\bsrc\s*=", attrs, re.IGNORECASE):
+            continue
+        kind = re.search(r"""\btype\s*=\s*["']?([^"'\s>]+)""", attrs, re.IGNORECASE)
+        if kind and kind.group(1).lower() not in _JS_SCRIPT_TYPES:
+            continue
+        problem = _bracket_problem(js)
+        if problem:
+            where = re.search(r"line (\d+)", problem)
+            snippet = ""
+            if where:
+                lines = js.splitlines()
+                k = int(where.group(1)) - 1
+                if 0 <= k < len(lines):
+                    snippet = " — code: " + " ".join(lines[k].split())[:160]
+            errors.append(f"<script> #{index}: {problem}{snippet}")
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Valves (user-configurable settings)
 # ---------------------------------------------------------------------------
 
@@ -1046,6 +1205,19 @@ class Tools:
         :param title: Short descriptive title for the visualization.
         :return: Interactive rich embed rendered in the chat, with LLM context.
         """
+        # Fpt-Feature viz-script-bracket-check: script lệch ngoặc thì không nhúng khung trống,
+        # trả lỗi để mô hình sửa và gọi lại.
+        bracket_errors = _script_bracket_errors(_sanitize_content(html_code))
+        if bracket_errors:
+            return (
+                f'Visualization "{title}" was NOT rendered: its JavaScript has unbalanced brackets, '
+                "so the script would fail and the user would see an empty frame.\n"
+                + "\n".join(f"- {e}" for e in bracket_errors)
+                + "\nFix the brackets (write nested Chart.js options one property per line and check "
+                "that every ( [ { is closed in order), then call render_visualization again with the "
+                "corrected html_code. Do not mention this check to the user."
+            )
+
         # Detect UI language via parent page JS (same pattern as PDF/Gamma actions)
         lang = "en"
         if __event_call__:
